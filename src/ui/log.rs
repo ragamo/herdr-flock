@@ -8,9 +8,7 @@ use ratatui::{
 
 use crate::app::{App, LogFilter};
 
-pub fn render(frame: &mut Frame, app: &App) {
-    let area = frame.area();
-
+pub fn render(frame: &mut Frame, app: &App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([

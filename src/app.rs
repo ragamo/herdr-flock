@@ -2,6 +2,7 @@ use crossterm::event::{KeyEvent, MouseEvent, MouseEventKind, KeyCode};
 
 use crate::model::farm::Farm;
 use crate::mock;
+use crate::ui;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Screen {
@@ -53,6 +54,21 @@ impl App {
     }
 
     pub fn handle_mouse(&mut self, mouse: &MouseEvent) {
+        match mouse.kind {
+            MouseEventKind::Down(_) => {
+                if mouse.row < ui::TAB_HEIGHT {
+                    if let Some(screen) = ui::tab_click(mouse.column) {
+                        if self.screen != screen {
+                            self.screen = screen;
+                            self.selected_sheep = None;
+                        }
+                    }
+                    return;
+                }
+            }
+            _ => {}
+        }
+
         match self.screen {
             Screen::Farm => self.handle_farm_mouse(mouse),
             Screen::Log => self.handle_log_mouse(mouse),
@@ -90,7 +106,9 @@ impl App {
         match mouse.kind {
             MouseEventKind::Down(_) => {
                 let (col, row) = (mouse.column, mouse.row);
-                self.selected_sheep = self.farm.sheep_at(col, row);
+                let offset_x = 1;
+                let offset_y = ui::TAB_HEIGHT + 1;
+                self.selected_sheep = self.farm.sheep_at(col, row, offset_x, offset_y);
             }
             _ => {}
         }
@@ -102,8 +120,9 @@ impl App {
             MouseEventKind::ScrollDown => self.log_scroll = self.log_scroll.saturating_add(3),
             MouseEventKind::Down(_) => {
                 let row = mouse.row as usize;
-                if row >= 3 {
-                    let index = (row - 3) as usize + self.log_scroll as usize;
+                let header_offset = (ui::TAB_HEIGHT + 3) as usize;
+                if row >= header_offset {
+                    let index = (row - header_offset) + self.log_scroll as usize;
                     if index < self.farm.sheep.len() {
                         self.selected_sheep = Some(index);
                     }

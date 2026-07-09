@@ -15,9 +15,7 @@ const COLOR_WHITE: Color = Color::Rgb(250, 250, 250);
 const COLOR_BLACK: Color = Color::Rgb(20, 20, 20);
 const COLOR_BEIGE: Color = Color::Rgb(210, 180, 140);
 
-pub fn render(frame: &mut Frame, app: &App) {
-    let area = frame.area();
-
+pub fn render(frame: &mut Frame, app: &App, area: Rect) {
     let chunks = Layout::default()
         .direction(Direction::Vertical)
         .constraints([Constraint::Min(1), Constraint::Length(1)])
@@ -41,7 +39,6 @@ pub fn render(frame: &mut Frame, app: &App) {
 fn render_terrain(frame: &mut Frame, area: Rect) {
     let block = Block::default()
         .borders(Borders::ALL)
-        .title(" 🌾 Flock Farm ")
         .border_style(Style::default().fg(Color::Rgb(80, 140, 80)))
         .style(Style::default().bg(COLOR_BG));
 
@@ -65,37 +62,6 @@ fn render_terrain(frame: &mut Frame, area: Rect) {
 }
 
 fn terrain_char(col: u16, row: u16, width: u16, height: u16) -> (&'static str, Color) {
-    if row == 0 && col < 8 {
-        return (
-            match col {
-                0 => "┌",
-                1..=6 => "─",
-                7 => "┐",
-                _ => " ",
-            },
-            Color::Rgb(180, 140, 60),
-        );
-    }
-    if (row == 1 || row == 2) && col < 8 {
-        return (
-            match col {
-                0 | 7 => "│",
-                _ => " ",
-            },
-            Color::Rgb(180, 140, 60),
-        );
-    }
-    if row == 3 && col < 8 {
-        return (
-            match col {
-                0 => "└",
-                1..=6 => "─",
-                7 => "┘",
-                _ => " ",
-            },
-            Color::Rgb(180, 140, 60),
-        );
-    }
 
     if col == width - 4 && row == height / 2 {
         return ("◎", Color::Cyan);
@@ -182,6 +148,20 @@ fn render_sheep(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn half_block(top: Px, bot: Px, working_pulse: bool) -> (&'static str, Color, Color) {
+    if top == Px::Z && bot == Px::Z {
+        return ("z", Color::Rgb(180, 180, 220), COLOR_BG);
+    }
+    if top == Px::Z {
+        let bot_color = px_color(bot, working_pulse);
+        let bg = if bot == Px::T { COLOR_BG } else { bot_color };
+        return ("z", Color::Rgb(180, 180, 220), bg);
+    }
+    if bot == Px::Z {
+        let top_color = px_color(top, working_pulse);
+        let bg = if top == Px::T { COLOR_BG } else { top_color };
+        return ("z", Color::Rgb(180, 180, 220), bg);
+    }
+
     let top_color = px_color(top, working_pulse);
     let bot_color = px_color(bot, working_pulse);
 
@@ -206,6 +186,8 @@ fn px_color(px: Px, working_pulse: bool) -> Color {
             }
         }
         Px::B => COLOR_BEIGE,
+        Px::Z => COLOR_BG,
+        Px::M => Color::Rgb(180, 40, 40),
     }
 }
 
@@ -234,16 +216,20 @@ fn render_tooltip(frame: &mut Frame, sheep: &crate::model::sheep::Sheep, area: R
 
 fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
     let alive = app.farm.sheep.iter().filter(|s| s.is_alive()).count();
-    let total = app.farm.sheep.len();
+    let dead = app.farm.sheep.iter().filter(|s| !s.is_alive()).count();
 
     let status = Line::from(vec![
-        Span::styled(" [Tab]", Style::default().fg(Color::DarkGray)),
-        Span::styled(" Log ", Style::default().fg(Color::Cyan)),
-        Span::styled(" | ", Style::default().fg(Color::DarkGray)),
         Span::styled(
-            format!("🐑 {alive}/{total}"),
+            format!(" 🐑 {alive}"),
             Style::default().fg(Color::Green),
         ),
+        Span::styled(" | ", Style::default().fg(Color::DarkGray)),
+        Span::styled(
+            format!("🪦 {dead}"),
+            Style::default().fg(Color::Gray),
+        ),
+        Span::styled(" | ", Style::default().fg(Color::DarkGray)),
+        Span::styled("[Tab] Switch", Style::default().fg(Color::DarkGray)),
         Span::styled(" | ", Style::default().fg(Color::DarkGray)),
         Span::styled("[q] Quit", Style::default().fg(Color::DarkGray)),
     ]);

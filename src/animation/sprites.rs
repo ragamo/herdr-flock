@@ -11,6 +11,8 @@ pub enum Px {
     K,
     W,
     B,
+    Z,
+    M,
 }
 
 pub struct SheepSprite {
@@ -26,6 +28,8 @@ impl SheepSprite {
                 b'#' => Px::K,
                 b'W' => Px::W,
                 b'B' => Px::B,
+                b'z' | b'Z' => Px::Z,
+                b'M' => Px::M,
                 _ => Px::T,
             })
             .unwrap_or(Px::T)
@@ -121,12 +125,12 @@ const FRONT_B: [&str; 10] = [
 // Back facing (Up) - frame A
 const BACK_A: [&str; 10] = [
     "...........",
+    "...........",
     "..##WWW##..",
     ".#WWWWWWW#.",
     ".#WWWWWWW#.",
     ".#WWWWWWW#.",
     ".#WWW#WWW#.",
-    ".#WWWWWWW#.",
     "..#WWWWW#..",
     "..##...##..",
     "..##...##..",
@@ -135,12 +139,12 @@ const BACK_A: [&str; 10] = [
 // Back facing (Up) - frame B
 const BACK_B: [&str; 10] = [
     "...........",
+    "...........",
     "..##WWW##..",
     ".#WWWWWWW#.",
     ".#WWWWWWW#.",
     ".#WWWWWWW#.",
     ".#WWW#WWW#.",
-    ".#WWWWWWW#.",
     "..#WWWWW#..",
     "...##.##...",
     "...##.##...",
@@ -148,12 +152,12 @@ const BACK_B: [&str; 10] = [
 
 // Left facing - frame A
 const LEFT_A: [&str; 10] = [
+    "...........",  
+    "...........",  
     "...##WW##..",
     ".##BBWWWW#.",
     ".#B#BWWWW#.",
     ".##BBWWWW#.",
-    "..#WWWWWW#.",
-    "..#WWWWWW#.",
     "..#WWWWWW#.",
     "...#WWWW#..",
     "...##..##..",
@@ -162,12 +166,12 @@ const LEFT_A: [&str; 10] = [
 
 // Left facing - frame B
 const LEFT_B: [&str; 10] = [
+    "...........",
+    "...........",
     "...##WW##..",
     ".##BBWWWW#.",
     ".#B#BWWWW#.",
     ".##BBWWWW#.",
-    "..#WWWWWW#.",
-    "..#WWWWWW#.",
     "..#WWWWWW#.",
     "...#WWWW#..",
     "..##..##...",
@@ -176,26 +180,26 @@ const LEFT_B: [&str; 10] = [
 
 // Right facing - frame A
 const RIGHT_A: [&str; 10] = [
+    "...........",
+    "...........",
     "..##WW##...",
     ".#WWWWBB##.",
     ".#WWWWB#B#.",
     ".#WWWWBB##.",
     "..#WWWWWW#.",
-    "..#WWWWWW#.",
-    "..#WWWWWW#.",
     "...#WWWW#..",
-    "..##..##...",
-    "..##..##...",
+    "....##..##.",
+    "....##..##.",
 ];
 
 // Right facing - frame B
 const RIGHT_B: [&str; 10] = [
+    "...........",
+    "...........",
     "..##WW##...",
     ".#WWWWBB##.",
     ".#WWWWB#B#.",
     ".#WWWWBB##.",
-    "..#WWWWWW#.",
-    "..#WWWWWW#.",
     "..#WWWWWW#.",
     "...#WWWW#..",
     "...##..##..",
@@ -204,22 +208,22 @@ const RIGHT_B: [&str; 10] = [
 
 // Eating - frame A (head down, facing front)
 const EAT_A: [&str; 10] = [
+    "...........",
     "..##WWW##..",
-    ".#WWWWWWW#.",
     ".#WWWWWWW#.",
     ".#WWWWWWW#.",
     ".#WWWWWWW#.",
     ".#WW#B#WW#.",
     ".#WWBBBWW#.",
-    "..#BBBBB#..",
+    "..#BBMBB#..",
     "..##...##..",
     "..##...##..",
 ];
 
 // Eating - frame B (head slightly up between bites)
 const EAT_B: [&str; 10] = [
+    "...........",
     "..##WWW##..",
-    ".#WWWWWWW#.",
     ".#WWWWWWW#.",
     ".#WWWWWWW#.",
     ".#WW#B#WW#.",
@@ -230,11 +234,11 @@ const EAT_B: [&str; 10] = [
     "..##...##..",
 ];
 
-// Sleeping - frame A (lying down)
+// Sleeping - frame A (lying down, z floating)
 const SLEEP_A: [&str; 10] = [
-    "...........",
-    "...........",
-    "...........",
+    "........z..",
+    ".......Z...",
+    "......z....",
     "...........",
     "..##WWW##..",
     ".#WWWWWWW#.",
@@ -244,11 +248,11 @@ const SLEEP_A: [&str; 10] = [
     "..#######..",
 ];
 
-// Sleeping - frame B
+// Sleeping - frame B (z shifted)
 const SLEEP_B: [&str; 10] = [
-    "...........",
-    "...........",
-    "...........",
+    ".........Z.",
+    "........z..",
+    ".......Z...",
     "...........",
     "..##WWW##..",
     ".#WWWWWWW#.",
