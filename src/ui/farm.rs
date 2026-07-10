@@ -421,7 +421,10 @@ fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
         Span::styled(" ○ demo ", Style::default().fg(Color::DarkGray))
     };
 
-    let status = Line::from(vec![
+    let time_label = app.atmosphere.time_label();
+    let weather_label = app.atmosphere.weather_label();
+
+    let left = Line::from(vec![
         conn_indicator,
         Span::styled("| ", Style::default().fg(Color::DarkGray)),
         Span::styled(format!("🐑 {alive}"), Style::default().fg(Color::Green)),
@@ -433,5 +436,19 @@ fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
         Span::styled("[q] Quit", Style::default().fg(Color::DarkGray)),
     ]);
 
-    frame.render_widget(Paragraph::new(status), area);
+    let right_spans = vec![
+        Span::styled(format!("{time_label} "), Style::default().fg(Color::Rgb(180, 180, 100))),
+        Span::styled("| ", Style::default().fg(Color::DarkGray)),
+        Span::styled(format!("{weather_label} "), Style::default().fg(Color::Rgb(120, 170, 220))),
+    ];
+    let right_len: u16 = right_spans.iter()
+        .map(|s| unicode_width::UnicodeWidthStr::width(s.content.as_ref()) as u16)
+        .sum();
+    let right_x = area.right().saturating_sub(right_len);
+
+    frame.render_widget(Paragraph::new(left), area);
+    frame.render_widget(
+        Paragraph::new(Line::from(right_spans)),
+        Rect::new(right_x, area.y, right_len as u16, area.height),
+    );
 }

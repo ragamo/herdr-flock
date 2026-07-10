@@ -321,6 +321,7 @@ dependencies = [
  "rusqlite",
  "serde",
  "serde_json",
+ "unicode-width 0.1.14",
 ]
 
 [[package]]

@@ -71,6 +71,31 @@ impl Atmosphere {
         }
     }
 
+    pub fn time_label(&self) -> &'static str {
+        match self.time_of_day % DAY_CYCLE {
+            0..=199   => "🌅 Dawn",
+            200..=599 => "🌤 Morning",
+            600..=1099 => "☀ Midday",
+            1100..=1199 => "🌇 Afternoon",
+            1200..=1399 => "🌆 Dusk",
+            1400..=1799 => "🌙 Evening",
+            1800..=2399 => "✦ Night",
+            _           => "✦ Night",
+        }
+    }
+
+    pub fn weather_label(&self) -> &'static str {
+        match &self.phase {
+            WeatherPhase::Clear { .. }                        => "☁ Clear",
+            WeatherPhase::FadeIn  { kind: WeatherKind::Rain, .. } |
+            WeatherPhase::Active  { kind: WeatherKind::Rain, .. } |
+            WeatherPhase::FadeOut { kind: WeatherKind::Rain, .. } => "🌧 Rain",
+            WeatherPhase::FadeIn  { kind: WeatherKind::Snow, .. } |
+            WeatherPhase::Active  { kind: WeatherKind::Snow, .. } |
+            WeatherPhase::FadeOut { kind: WeatherKind::Snow, .. } => "❄ Snow",
+        }
+    }
+
     pub fn active_weather(&self) -> Option<WeatherKind> {
         match &self.phase {
             WeatherPhase::FadeIn  { kind, .. } |
