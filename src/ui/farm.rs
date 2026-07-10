@@ -49,6 +49,7 @@ struct TerrainContext<'a> {
     night_t: f32,
     bg_color: Color,
     trees: &'a [(u16, u16)],
+    rocks: &'a [(u16, u16)],
     river_path: &'a [u16],
 }
 
@@ -97,6 +98,7 @@ fn render_terrain(frame: &mut Frame, app: &App, area: Rect, bg_color: Color, nig
         night_t,
         bg_color,
         trees: &app.farm.trees,
+        rocks: &app.farm.rocks,
         river_path: &app.farm.river_path,
     };
 
@@ -162,6 +164,29 @@ fn terrain_cell(col: u16, row: u16, ctx: &TerrainContext) -> (&'static str, Colo
             (1, 5) | (2, 5) | (3, 5) => ("█", brown, brown),
             (0, 5) | (4, 5) => (" ", bg, bg),
             _ => (" ", bg, bg),
+        };
+    }
+
+    // 2b. Rocks (6 wide × 4 tall, rounded corners)
+    for &(rc, rr) in ctx.rocks {
+        let lc = col.wrapping_sub(rc);
+        let lr = row.wrapping_sub(rr);
+        if lc >= 6 || lr >= 4 {
+            continue;
+        }
+        let bg = ctx.bg_color;
+        let h = cell_hash(rc + lc as u16, rr + lr as u16);
+        let base = 50u8 + (h % 4) as u8 * 8;
+        let highlight = 80u8 + (h % 3) as u8 * 7;
+        let dim = 1.0 - n * 0.5;
+        let stone = if h % 8 == 0 {
+            dim_color(highlight, highlight, highlight + 4, dim)
+        } else {
+            dim_color(base, base, base + 4, dim)
+        };
+        return match (lc, lr) {
+            (0, 0) | (5, 0) | (0, 3) | (5, 3) => (" ", bg, bg),
+            _ => ("█", stone, stone),
         };
     }
 

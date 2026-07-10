@@ -9,6 +9,7 @@ pub struct Farm {
     pub height: u16,
     pub live_mode: bool,
     pub trees: Vec<(u16, u16)>,
+    pub rocks: Vec<(u16, u16)>,
     /// Per-column row offset for the river (len == width)
     pub river_path: Vec<u16>,
 }
@@ -17,12 +18,14 @@ impl Farm {
     pub fn new(width: u16, height: u16, live_mode: bool) -> Self {
         let river_path = generate_river_path(width, height);
         let trees = generate_trees(width, height, &river_path);
+        let rocks = generate_rocks(width, height, &river_path, &trees);
         Self {
             sheep: Vec::new(),
             width,
             height,
             live_mode,
             trees,
+            rocks,
             river_path,
         }
     }
@@ -32,6 +35,7 @@ impl Farm {
         self.height = height;
         self.river_path = generate_river_path(width, height);
         self.trees = generate_trees(width, height, &self.river_path);
+        self.rocks = generate_rocks(width, height, &self.river_path, &self.trees);
 
         let margin_x = SPRITE_CHAR_WIDTH as f32 + 2.0;
         let margin_y = SPRITE_CHAR_HEIGHT as f32 + 1.0;
@@ -133,14 +137,7 @@ impl Farm {
                         && new_y + sprite_h > oy
                 });
 
-                let collides_tree = self.trees.iter().any(|&(tc, tr)| {
-                    new_x < tc as f32 + 6.0
-                        && new_x + sprite_w > tc as f32 - 1.0
-                        && new_y < tr as f32 + 6.0
-                        && new_y + sprite_h > tr as f32
-                });
-
-                let collides = collides_sheep || collides_tree;
+                let collides = collides_sheep;
 
                 if !collides {
                     if (new_x - self.sheep[i].x).abs() > 0.001 {
@@ -268,4 +265,59 @@ pub fn generate_trees(width: u16, height: u16, river_path: &[u16]) -> Vec<(u16, 
     }
 
     trees
+}
+
+pub fn generate_rocks(width: u16, height: u16, river_path: &[u16], trees: &[(u16, u16)]) -> Vec<(u16, u16)> {
+    if width < 20 || height < 14 {
+        return Vec::new();
+    }
+
+    let target = ((width as u32 * height as u32) / 2000).min(5) as usize;
+    let mut rocks: Vec<(u16, u16)> = Vec::with_capacity(target);
+
+    let mut rng = rand::thread_rng();
+    let entropy: u64 = rng.gen_range(0..u64::MAX);
+    let mut seed: u64 = (width as u64)
+        .wrapping_mul(73856093)
+        .wrapping_add((height as u64).wrapping_mul(19349663))
+        .wrapping_add(entropy);
+
+    let lcg = |s: u64| -> u64 {
+        s.wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407)
+    };
+
+    let col_min: u16 = 3;
+    let col_max: u16 = width.saturating_sub(6);
+    let row_min: u16 = 3;
+    let row_max: u16 = height.saturating_sub(6);
+
+    let mut attempts = 0usize;
+    while rocks.len() < target && attempts < target * 40 {
+        attempts += 1;
+        seed = lcg(seed);
+        let col = col_min + ((seed >> 33) as u16 % (col_max - col_min + 1));
+        seed = lcg(seed);
+        let row = row_min + ((seed >> 33) as u16 % (row_max - row_min + 1));
+
+        // Exclusion: river band
+        let col_river = river_path.get(col as usize).copied().unwrap_or(0);
+        if row >= col_river.saturating_sub(1) && row <= col_river + 3 {
+            continue;
+        }
+        // Exclusion: too close to a tree
+        let near_tree = trees.iter().any(|&(tc, tr)| {
+            (col as i32 - tc as i32).abs() < 6 && (row as i32 - tr as i32).abs() < 7
+        });
+        if near_tree { continue; }
+        // Exclusion: too close to another rock
+        let near_rock = rocks.iter().any(|&(rc, rr)| {
+            (col as i32 - rc as i32).abs() < 5 && (row as i32 - rr as i32).abs() < 4
+        });
+        if near_rock { continue; }
+
+        rocks.push((col, row));
+    }
+
+    rocks
 }
