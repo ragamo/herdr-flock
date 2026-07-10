@@ -89,12 +89,23 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
     if let Some(idx) = app.selected_sheep {
         if let Some(sheep) = app.farm.sheep.get(idx) {
             if !sheep.is_alive() {
-                let h_chunks = Layout::default()
-                    .direction(Direction::Horizontal)
-                    .constraints([Constraint::Min(1), Constraint::Length(26)])
-                    .split(chunks[1]);
-                render_table(frame, app, h_chunks[0]);
-                render_epitaph(frame, sheep, h_chunks[1]);
+                if area.width >= 100 {
+                    // Wide: epitaph on the right
+                    let h_chunks = Layout::default()
+                        .direction(Direction::Horizontal)
+                        .constraints([Constraint::Min(1), Constraint::Length(26)])
+                        .split(chunks[1]);
+                    render_table(frame, app, h_chunks[0]);
+                    render_epitaph(frame, sheep, h_chunks[1]);
+                } else {
+                    // Narrow: epitaph below the table
+                    let v_chunks = Layout::default()
+                        .direction(Direction::Vertical)
+                        .constraints([Constraint::Min(1), Constraint::Length(14)])
+                        .split(chunks[1]);
+                    render_table(frame, app, v_chunks[0]);
+                    render_epitaph(frame, sheep, v_chunks[1]);
+                }
                 render_status_bar(frame, app, chunks[2]);
                 return;
             }
@@ -232,40 +243,38 @@ fn render_epitaph(frame: &mut Frame, sheep: &Sheep, area: Rect) {
         .map(|d| d.with_timezone(&Local).format("%Y-%m-%d").to_string())
         .unwrap_or_else(|| "?".to_string());
 
+    // Truncate text to exactly 11 chars to fit inside the gravestone
+    let fit = |s: &str| -> String {
+        if s.len() > 11 { format!("{:.10}…", s) } else { format!("{:^11}", s) }
+    };
+
+    let name_fit = fit(&sheep.name);
+    let life_fit = fit(&lifespan);
+
     let lines = vec![
         Line::from(""),
-        Line::from(Span::styled("    .-------.    ", Style::default().fg(Color::Gray))),
-        Line::from(Span::styled("   /         \\   ", Style::default().fg(Color::Gray))),
-        Line::from(Span::styled("  |     RIP   |  ", Style::default().fg(Color::Rgb(120, 120, 120)))),
-        Line::from(Span::styled(
-            format!("  | {:^13} |  ", sheep.name),
-            Style::default().fg(Color::White).add_modifier(Modifier::BOLD),
-        )),
-        Line::from(Span::styled("  |             |  ", Style::default().fg(Color::Gray))),
-        Line::from(Span::styled(
-            format!("  | {:^13} |  ", lifespan),
-            Style::default().fg(Color::Rgb(150, 150, 150)),
-        )),
-        Line::from(Span::styled("  |_____________|  ", Style::default().fg(Color::Gray))),
-        Line::from(Span::styled("  |             |  ", Style::default().fg(Color::Rgb(80, 60, 40)))),
-        Line::from(Span::styled("  |_____________|  ", Style::default().fg(Color::Rgb(80, 60, 40)))),
+        Line::from(Span::styled("   .-----------.  ", Style::default().fg(Color::Gray))),
+        Line::from(Span::styled("  /             \\ ", Style::default().fg(Color::Gray))),
+        Line::from(Span::styled("  |     RIP     | ", Style::default().fg(Color::Rgb(120, 120, 120)))),
+        Line::from(vec![
+            Span::styled("  | ", Style::default().fg(Color::Gray)),
+            Span::styled(name_fit, Style::default().fg(Color::White).add_modifier(Modifier::BOLD)),
+            Span::styled(" | ", Style::default().fg(Color::Gray)),
+        ]),
+        Line::from(Span::styled("  |             | ", Style::default().fg(Color::Gray))),
+        Line::from(vec![
+            Span::styled("  | ", Style::default().fg(Color::Gray)),
+            Span::styled(life_fit, Style::default().fg(Color::Rgb(150, 150, 150))),
+            Span::styled(" | ", Style::default().fg(Color::Gray)),
+        ]),
+        Line::from(Span::styled("  |_____________| ", Style::default().fg(Color::Gray))),
+        Line::from(Span::styled("  |             | ", Style::default().fg(Color::Rgb(80, 60, 40)))),
+        Line::from(Span::styled("  |_____________| ", Style::default().fg(Color::Rgb(80, 60, 40)))),
         Line::from(""),
-        Line::from(Span::styled(
-            format!("  Born:  {}", born),
-            Style::default().fg(Color::DarkGray),
-        )),
-        Line::from(Span::styled(
-            format!("  Died:  {}", died),
-            Style::default().fg(Color::DarkGray),
-        )),
-        Line::from(Span::styled(
-            format!("  Tasks: {}", sheep.tasks_completed),
-            Style::default().fg(Color::DarkGray),
-        )),
-        Line::from(Span::styled(
-            format!("  Proj:  {}", sheep.project),
-            Style::default().fg(Color::DarkGray),
-        )),
+        Line::from(Span::styled(format!("  Born:  {born}"), Style::default().fg(Color::DarkGray))),
+        Line::from(Span::styled(format!("  Died:  {died}"), Style::default().fg(Color::DarkGray))),
+        Line::from(Span::styled(format!("  Tasks: {}", sheep.tasks_completed), Style::default().fg(Color::DarkGray))),
+        Line::from(Span::styled(format!("  Proj:  {}", sheep.project), Style::default().fg(Color::DarkGray))),
     ];
 
     let epitaph = Paragraph::new(lines).block(
