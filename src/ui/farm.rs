@@ -218,9 +218,17 @@ fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
     let alive = app.farm.sheep.iter().filter(|s| s.is_alive()).count();
     let dead = app.farm.sheep.iter().filter(|s| !s.is_alive()).count();
 
+    let conn_indicator = if app.connected {
+        Span::styled(" ● herdr ", Style::default().fg(Color::Green))
+    } else {
+        Span::styled(" ○ demo ", Style::default().fg(Color::DarkGray))
+    };
+
     let status = Line::from(vec![
+        conn_indicator,
+        Span::styled("| ", Style::default().fg(Color::DarkGray)),
         Span::styled(
-            format!(" 🐑 {alive}"),
+            format!("🐑 {alive}"),
             Style::default().fg(Color::Green),
         ),
         Span::styled(" | ", Style::default().fg(Color::DarkGray)),

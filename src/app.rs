@@ -1,7 +1,13 @@
-use crossterm::event::{KeyEvent, MouseEvent, MouseEventKind, KeyCode};
+use std::sync::mpsc;
 
-use crate::model::farm::Farm;
+use chrono::Utc;
+use crossterm::event::{KeyCode, KeyEvent, MouseEvent, MouseEventKind};
+use rand::Rng;
+
+use crate::herdr::{HerdrEvent, SnapshotAgent};
 use crate::mock;
+use crate::model::farm::Farm;
+use crate::model::sheep::{Direction, Sheep, SheepState};
 use crate::ui;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -17,6 +23,8 @@ pub struct App {
     pub selected_sheep: Option<usize>,
     pub log_scroll: u16,
     pub log_filter: LogFilter,
+    pub herdr_rx: Option<mpsc::Receiver<HerdrEvent>>,
+    pub connected: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -27,14 +35,21 @@ pub enum LogFilter {
 }
 
 impl App {
-    pub fn new() -> Self {
+    pub fn new(herdr_rx: Option<mpsc::Receiver<HerdrEvent>>) -> Self {
+        let connected = herdr_rx.is_some();
         Self {
             screen: Screen::Farm,
-            farm: mock::create_mock_farm(),
+            farm: if connected {
+                Farm::new(100, 40)
+            } else {
+                mock::create_mock_farm()
+            },
             tick_count: 0,
             selected_sheep: None,
             log_scroll: 0,
             log_filter: LogFilter::All,
+            herdr_rx,
+            connected,
         }
     }
 
@@ -77,7 +92,122 @@ impl App {
 
     pub fn tick(&mut self) {
         self.tick_count = self.tick_count.wrapping_add(1);
+        self.process_herdr_events();
         self.farm.tick();
+    }
+
+    fn process_herdr_events(&mut self) {
+        let events: Vec<HerdrEvent> = match &self.herdr_rx {
+            Some(rx) => rx.try_iter().collect(),
+            None => return,
+        };
+
+        for event in events {
+            match event {
+                HerdrEvent::Snapshot { agents } => {
+                    for agent in agents {
+                        self.upsert_sheep_from_agent(&agent);
+                    }
+                }
+                HerdrEvent::AgentDetected {
+                    pane_id,
+                    workspace_id,
+                    agent,
+                } => {
+                    if agent.is_some() {
+                        let snapshot_agent = SnapshotAgent {
+                            pane_id,
+                            workspace_id,
+                            agent,
+                            agent_status: "idle".to_string(),
+                            name: None,
+                            cwd: None,
+                        };
+                        self.upsert_sheep_from_agent(&snapshot_agent);
+                    }
+                }
+                HerdrEvent::AgentStatusChanged {
+                    pane_id,
+                    agent_status,
+                    ..
+                } => {
+                    if let Some(sheep) = self
+                        .farm
+                        .sheep
+                        .iter_mut()
+                        .find(|s| s.id == pane_id && s.is_alive())
+                    {
+                        sheep.state = map_agent_status(&agent_status);
+                        sheep.tasks_completed += if agent_status == "done" { 1 } else { 0 };
+                    }
+                }
+                HerdrEvent::PaneClosed { pane_id } => {
+                    if let Some(sheep) = self
+                        .farm
+                        .sheep
+                        .iter_mut()
+                        .find(|s| s.id == pane_id && s.is_alive())
+                    {
+                        sheep.died = Some(Utc::now());
+                        sheep.state = SheepState::Sleeping;
+                    }
+                }
+            }
+        }
+    }
+
+    fn upsert_sheep_from_agent(&mut self, agent: &SnapshotAgent) {
+        let exists = self.farm.sheep.iter().any(|s| s.id == agent.pane_id && s.is_alive());
+        if exists {
+            if let Some(sheep) = self
+                .farm
+                .sheep
+                .iter_mut()
+                .find(|s| s.id == agent.pane_id && s.is_alive())
+            {
+                sheep.state = map_agent_status(&agent.agent_status);
+            }
+            return;
+        }
+
+        let mut rng = rand::thread_rng();
+        let w = self.farm.width as f32;
+        let h = self.farm.height as f32;
+        let x = rng.gen_range(3.0..w - 15.0);
+        let y = rng.gen_range(3.0..h - 8.0);
+
+        let project = agent
+            .cwd
+            .as_ref()
+            .and_then(|p| p.split('/').last().map(String::from))
+            .unwrap_or_else(|| agent.workspace_id.clone());
+
+        let name = project.clone();
+
+        let sheep = Sheep {
+            id: agent.pane_id.clone(),
+            name,
+            born: Utc::now(),
+            died: None,
+            project,
+            tasks_completed: 0,
+            state: map_agent_status(&agent.agent_status),
+            direction: match rng.gen_range(0..4) {
+                0 => Direction::Up,
+                1 => Direction::Down,
+                2 => Direction::Left,
+                _ => Direction::Right,
+            },
+            x,
+            y,
+            target_x: x,
+            target_y: y,
+            anim_frame: 0,
+            anim_tick: 0,
+            state_timer: rng.gen_range(60..200),
+        };
+
+        self.farm.sheep.push(sheep);
     }
 
     fn handle_farm_key(&mut self, key: &KeyEvent) {
@@ -130,5 +260,14 @@ impl App {
             }
             _ => {}
         }
+    }
+}
+
+fn map_agent_status(status: &str) -> SheepState {
+    match status {
+        "working" => SheepState::Working,
+        "blocked" => SheepState::Eating,
+        "done" => SheepState::Sleeping,
+        _ => SheepState::Idle,
     }
 }

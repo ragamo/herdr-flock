@@ -8,17 +8,13 @@ pub fn create_mock_farm() -> Farm {
     let mut farm = Farm::new(100, 40);
     let mut rng = rand::thread_rng();
 
-    let names = [
-        "Dolly", "Woolma", "Baaarbara", "Shear-lock", "Lambchop",
-        "Fleecy", "Nimbus", "Cotton", "Clover", "Patches",
-    ];
-
     let projects = [
         "herdr-core", "api-gateway", "auth-service", "dashboard-ui",
-        "data-pipeline", "infra-terraform",
+        "data-pipeline", "infra-terraform", "payments", "notifications",
+        "search-index", "deploy-cli",
     ];
 
-    for (i, name) in names.iter().enumerate() {
+    for i in 0..10 {
         let is_dead = i >= 7;
         let born = Utc::now() - Duration::days(rng.gen_range(1..90));
         let died = if is_dead {
@@ -32,10 +28,10 @@ pub fn create_mock_farm() -> Farm {
 
         let sheep = Sheep {
             id: format!("agent-{:03}", i),
-            name: name.to_string(),
+            name: projects[i % projects.len()].to_string(),
             born,
             died,
-            project: projects[i % projects.len()].to_string(),
+            project: projects[i].to_string(),
             tasks_completed: rng.gen_range(1..50),
             state: if is_dead {
                 SheepState::Idle

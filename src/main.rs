@@ -1,11 +1,14 @@
 mod animation;
 mod app;
+mod herdr;
 mod mock;
 mod model;
 mod storage;
 mod ui;
 
+use std::env;
 use std::io;
+use std::process::Command;
 use std::time::Duration;
 
 use crossterm::{
@@ -18,6 +21,11 @@ use ratatui::{backend::CrosstermBackend, Terminal};
 use app::App;
 
 fn main() -> io::Result<()> {
+    let socket_path = env::var("HERDR_SOCKET_PATH")
+        .ok()
+        .or_else(discover_socket_path);
+    let herdr_rx = socket_path.and_then(|path| herdr::connect(&path));
+
     enable_raw_mode()?;
     let mut stdout = io::stdout();
     execute!(stdout, EnterAlternateScreen, EnableMouseCapture)?;
@@ -25,7 +33,7 @@ fn main() -> io::Result<()> {
     let backend = CrosstermBackend::new(stdout);
     let mut terminal = Terminal::new(backend)?;
 
-    let mut app = App::new();
+    let mut app = App::new(herdr_rx);
     let result = run_loop(&mut terminal, &mut app);
 
     disable_raw_mode()?;
@@ -37,6 +45,20 @@ fn main() -> io::Result<()> {
     terminal.show_cursor()?;
 
     result
+}
+
+fn discover_socket_path() -> Option<String> {
+    let output = Command::new("herdr")
+        .args(["status", "server", "--json"])
+        .output()
+        .ok()?;
+    if !output.status.success() {
+        return None;
+    }
+    let json: serde_json::Value = serde_json::from_slice(&output.stdout).ok()?;
+    json.get("socket_path")
+        .and_then(|v| v.as_str())
+        .map(String::from)
 }
 
 fn run_loop(

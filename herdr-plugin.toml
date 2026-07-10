@@ -8,11 +8,3 @@ id = "farm"
 title = "Flock Farm"
 placement = "overlay"
 command = ["herdr-flock"]
-
-[[events]]
-on = "pane.agent_detected"
-command = ["herdr-flock", "--event", "agent-born"]
-
-[[events]]
-on = "pane.agent_status_changed"
-command = ["herdr-flock", "--event", "agent-status"]
