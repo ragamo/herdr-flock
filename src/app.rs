@@ -253,11 +253,13 @@ impl App {
             MouseEventKind::ScrollDown => self.log_scroll = self.log_scroll.saturating_add(3),
             MouseEventKind::Down(_) => {
                 let row = mouse.row as usize;
-                let header_offset = (ui::TAB_HEIGHT + 3) as usize;
+                // TAB_HEIGHT + header_panel(3) + table_border(1) + table_header_row(1)
+                let header_offset = (ui::TAB_HEIGHT + 5) as usize;
                 if row >= header_offset {
-                    let index = (row - header_offset) + self.log_scroll as usize;
-                    if index < self.farm.sheep.len() {
-                        self.selected_sheep = Some(index);
+                    let display_row = (row - header_offset) + self.log_scroll as usize;
+                    let indices = ui::log::sorted_log_indices(&self.farm, self.log_filter);
+                    if let Some(maybe_idx) = indices.get(display_row) {
+                        self.selected_sheep = *maybe_idx;
                     }
                 }
             }
