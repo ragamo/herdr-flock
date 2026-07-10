@@ -5,7 +5,7 @@ use crate::model::farm::Farm;
 use crate::model::sheep::{Direction, Sheep, SheepState};
 
 pub fn create_mock_farm() -> Farm {
-    let mut farm = Farm::new(100, 40);
+    let mut farm = Farm::new(100, 40, false);
     let mut rng = rand::thread_rng();
 
     let projects = [

@@ -8,6 +8,7 @@ mod ui;
 
 use std::env;
 use std::io;
+use std::path::Path;
 use std::process::Command;
 use std::time::Duration;
 
@@ -21,9 +22,7 @@ use ratatui::{backend::CrosstermBackend, Terminal};
 use app::App;
 
 fn main() -> io::Result<()> {
-    let socket_path = env::var("HERDR_SOCKET_PATH")
-        .ok()
-        .or_else(discover_socket_path);
+    let socket_path = find_socket_path();
     let herdr_rx = socket_path.and_then(|path| herdr::connect(&path));
 
     enable_raw_mode()?;
@@ -47,6 +46,23 @@ fn main() -> io::Result<()> {
     result
 }
 
+fn find_socket_path() -> Option<String> {
+    if let Ok(path) = env::var("HERDR_SOCKET_PATH") {
+        if Path::new(&path).exists() {
+            return Some(path);
+        }
+    }
+
+    let default_path = dirs::config_dir()
+        .map(|d| d.join("herdr").join("herdr.sock"))
+        .and_then(|p| if p.exists() { Some(p.to_string_lossy().to_string()) } else { None });
+    if default_path.is_some() {
+        return default_path;
+    }
+
+    discover_socket_path()
+}
+
 fn discover_socket_path() -> Option<String> {
     let output = Command::new("herdr")
         .args(["status", "server", "--json"])
@@ -56,7 +72,8 @@ fn discover_socket_path() -> Option<String> {
         return None;
     }
     let json: serde_json::Value = serde_json::from_slice(&output.stdout).ok()?;
-    json.get("socket_path")
+    json.get("socket")
+        .or_else(|| json.get("socket_path"))
         .and_then(|v| v.as_str())
         .map(String::from)
 }

@@ -7,14 +7,16 @@ pub struct Farm {
     pub sheep: Vec<Sheep>,
     pub width: u16,
     pub height: u16,
+    pub live_mode: bool,
 }
 
 impl Farm {
-    pub fn new(width: u16, height: u16) -> Self {
+    pub fn new(width: u16, height: u16, live_mode: bool) -> Self {
         Self {
             sheep: Vec::new(),
             width,
             height,
+            live_mode,
         }
     }
 
@@ -36,7 +38,7 @@ impl Farm {
             self.sheep[i].anim_tick = self.sheep[i].anim_tick.wrapping_add(1);
             self.sheep[i].state_timer = self.sheep[i].state_timer.saturating_sub(1);
 
-            if self.sheep[i].state_timer == 0 {
+            if !self.live_mode && self.sheep[i].state_timer == 0 {
                 let new_state = match rng.gen_range(0..10) {
                     0..=5 => SheepState::Idle,
                     6..=7 => SheepState::Eating,
@@ -50,6 +52,12 @@ impl Farm {
                     self.sheep[i].target_x = rng.gen_range(2.0..w - margin_x);
                     self.sheep[i].target_y = rng.gen_range(2.0..h - margin_y);
                 }
+            }
+
+            if self.live_mode && self.sheep[i].state_timer == 0 {
+                self.sheep[i].target_x = rng.gen_range(2.0..w - margin_x);
+                self.sheep[i].target_y = rng.gen_range(2.0..h - margin_y);
+                self.sheep[i].state_timer = rng.gen_range(80..200);
             }
 
             let state = self.sheep[i].state;

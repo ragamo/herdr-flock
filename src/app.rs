@@ -40,7 +40,7 @@ impl App {
         Self {
             screen: Screen::Farm,
             farm: if connected {
-                Farm::new(100, 40)
+                Farm::new(100, 40, true)
             } else {
                 mock::create_mock_farm()
             },
@@ -104,52 +104,19 @@ impl App {
 
         for event in events {
             match event {
-                HerdrEvent::Snapshot { agents } => {
-                    for agent in agents {
-                        self.upsert_sheep_from_agent(&agent);
+                HerdrEvent::AgentList { agents } => {
+                    // Update or create sheep for each agent
+                    for agent in &agents {
+                        self.upsert_sheep_from_agent(agent);
                     }
-                }
-                HerdrEvent::AgentDetected {
-                    pane_id,
-                    workspace_id,
-                    agent,
-                } => {
-                    if agent.is_some() {
-                        let snapshot_agent = SnapshotAgent {
-                            pane_id,
-                            workspace_id,
-                            agent,
-                            agent_status: "idle".to_string(),
-                            name: None,
-                            cwd: None,
-                        };
-                        self.upsert_sheep_from_agent(&snapshot_agent);
-                    }
-                }
-                HerdrEvent::AgentStatusChanged {
-                    pane_id,
-                    agent_status,
-                    ..
-                } => {
-                    if let Some(sheep) = self
-                        .farm
-                        .sheep
-                        .iter_mut()
-                        .find(|s| s.id == pane_id && s.is_alive())
-                    {
-                        sheep.state = map_agent_status(&agent_status);
-                        sheep.tasks_completed += if agent_status == "done" { 1 } else { 0 };
-                    }
-                }
-                HerdrEvent::PaneClosed { pane_id } => {
-                    if let Some(sheep) = self
-                        .farm
-                        .sheep
-                        .iter_mut()
-                        .find(|s| s.id == pane_id && s.is_alive())
-                    {
-                        sheep.died = Some(Utc::now());
-                        sheep.state = SheepState::Sleeping;
+                    // Mark sheep as dead if their pane is no longer in the list
+                    let active_panes: Vec<String> =
+                        agents.iter().map(|a| a.pane_id.clone()).collect();
+                    for sheep in self.farm.sheep.iter_mut().filter(|s| s.is_alive()) {
+                        if !active_panes.contains(&sheep.id) {
+                            sheep.died = Some(Utc::now());
+                            sheep.state = SheepState::Sleeping;
+                        }
                     }
                 }
             }
