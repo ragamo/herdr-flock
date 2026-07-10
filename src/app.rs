@@ -46,10 +46,19 @@ impl App {
 
         if connected {
             let history = storage::load_flock();
-            for sheep in history {
-                if !sheep.is_alive() {
-                    farm.sheep.push(sheep);
-                }
+            let mut rng = rand::thread_rng();
+            let w = farm.width as f32;
+            let h = farm.height as f32;
+            let sprite_w = crate::animation::sprites::SPRITE_CHAR_WIDTH as f32;
+            let sprite_h = crate::animation::sprites::SPRITE_CHAR_HEIGHT as f32;
+
+            for mut sheep in history {
+                let (x, y) = find_free_spawn_in(&farm, &mut rng, w, h, sprite_w, sprite_h);
+                sheep.x = x;
+                sheep.y = y;
+                sheep.target_x = x;
+                sheep.target_y = y;
+                farm.sheep.push(sheep);
             }
         }
 
@@ -146,26 +155,20 @@ impl App {
     }
 
     fn upsert_sheep_from_agent(&mut self, agent: &SnapshotAgent) {
-        let exists = self.farm.sheep.iter().any(|s| s.id == agent.pane_id && s.is_alive());
-        if exists {
-            if let Some(sheep) = self
-                .farm
-                .sheep
-                .iter_mut()
-                .find(|s| s.id == agent.pane_id && s.is_alive())
-            {
-                sheep.state = map_agent_status(&agent.agent_status);
-            }
+        // If exists with same pane_id (alive or dead), update it
+        if let Some(sheep) = self
+            .farm
+            .sheep
+            .iter_mut()
+            .find(|s| s.id == agent.pane_id)
+        {
+            sheep.died = None;
+            sheep.state = map_agent_status(&agent.agent_status);
             return;
         }
 
         let mut rng = rand::thread_rng();
-        let w = self.farm.width as f32;
-        let h = self.farm.height as f32;
-        let sprite_w = crate::animation::sprites::SPRITE_CHAR_WIDTH as f32;
-        let sprite_h = crate::animation::sprites::SPRITE_CHAR_HEIGHT as f32;
-
-        let (x, y) = self.find_free_spawn(&mut rng, w, h, sprite_w, sprite_h);
+        let (x, y) = self.find_free_spawn_pos(&mut rng);
 
         let project = agent
             .cwd
@@ -201,35 +204,12 @@ impl App {
         self.farm.sheep.push(sheep);
     }
 
-    fn find_free_spawn(
-        &self,
-        rng: &mut impl rand::Rng,
-        w: f32,
-        h: f32,
-        sprite_w: f32,
-        sprite_h: f32,
-    ) -> (f32, f32) {
-        let max_x = (w - sprite_w - 2.0).max(3.0);
-        let max_y = (h - sprite_h - 1.0).max(3.0);
-
-        for _ in 0..50 {
-            let x = rng.gen_range(3.0..max_x);
-            let y = rng.gen_range(3.0..max_y);
-
-            let collides = self.farm.sheep.iter().filter(|s| s.is_alive()).any(|s| {
-                x < s.x + sprite_w
-                    && x + sprite_w > s.x
-                    && y < s.y + sprite_h
-                    && y + sprite_h > s.y
-            });
-
-            if !collides {
-                return (x, y);
-            }
-        }
-
-        // Fallback: allow overlap in extreme cases
-        (rng.gen_range(3.0..max_x), rng.gen_range(3.0..max_y))
+    fn find_free_spawn_pos(&self, rng: &mut impl rand::Rng) -> (f32, f32) {
+        let w = self.farm.width as f32;
+        let h = self.farm.height as f32;
+        let sprite_w = crate::animation::sprites::SPRITE_CHAR_WIDTH as f32;
+        let sprite_h = crate::animation::sprites::SPRITE_CHAR_HEIGHT as f32;
+        find_free_spawn_in(&self.farm, rng, w, h, sprite_w, sprite_h)
     }
 
     fn handle_farm_key(&mut self, key: &KeyEvent) {
@@ -292,4 +272,34 @@ fn map_agent_status(status: &str) -> SheepState {
         "done" => SheepState::Sleeping,
         _ => SheepState::Idle,
     }
+}
+
+fn find_free_spawn_in(
+    farm: &Farm,
+    rng: &mut impl rand::Rng,
+    w: f32,
+    h: f32,
+    sprite_w: f32,
+    sprite_h: f32,
+) -> (f32, f32) {
+    let max_x = (w - sprite_w - 2.0).max(3.0);
+    let max_y = (h - sprite_h - 1.0).max(3.0);
+
+    for _ in 0..50 {
+        let x = rng.gen_range(3.0..max_x);
+        let y = rng.gen_range(3.0..max_y);
+
+        let collides = farm.sheep.iter().filter(|s| s.is_alive()).any(|s| {
+            x < s.x + sprite_w
+                && x + sprite_w > s.x
+                && y < s.y + sprite_h
+                && y + sprite_h > s.y
+        });
+
+        if !collides {
+            return (x, y);
+        }
+    }
+
+    (rng.gen_range(3.0..max_x), rng.gen_range(3.0..max_y))
 }
