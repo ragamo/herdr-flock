@@ -74,9 +74,24 @@ impl Farm {
             }
 
             if self.live_mode && self.sheep[i].state_timer == 0 {
+                let base_state = self.sheep[i].state;
+                // Idle sheep can do cosmetic sub-activities
+                if base_state == SheepState::Idle {
+                    self.sheep[i].state = match rng.gen_range(0..6) {
+                        0 => SheepState::Eating,
+                        1 => SheepState::Sleeping,
+                        _ => SheepState::Idle,
+                    };
+                }
                 self.sheep[i].target_x = rng.gen_range(2.0..w - margin_x);
                 self.sheep[i].target_y = rng.gen_range(2.0..h - margin_y);
                 self.sheep[i].state_timer = rng.gen_range(80..200);
+                self.sheep[i].direction = match rng.gen_range(0..4) {
+                    0 => Direction::Up,
+                    1 => Direction::Down,
+                    2 => Direction::Left,
+                    _ => Direction::Right,
+                };
             }
 
             let state = self.sheep[i].state;
