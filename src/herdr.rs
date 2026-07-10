@@ -15,8 +15,10 @@ pub enum HerdrEvent {
 pub struct SnapshotAgent {
     pub pane_id: String,
     pub workspace_id: String,
+    #[allow(dead_code)]
     pub agent: Option<String>,
     pub agent_status: String,
+    #[allow(dead_code)]
     pub name: Option<String>,
     pub cwd: Option<String>,
 }
