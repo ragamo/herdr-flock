@@ -1,4 +1,4 @@
-use chrono::Duration;
+use chrono::{Duration, Local};
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -101,10 +101,10 @@ fn render_table(frame: &mut Frame, app: &App, area: Rect) {
                 Color::DarkGray
             };
 
-            let born = sheep.born.format("%Y-%m-%d %H:%M").to_string();
+            let born = sheep.born.with_timezone(&Local).format("%Y-%m-%d %H:%M").to_string();
             let died = sheep
                 .died
-                .map(|d| d.format("%Y-%m-%d %H:%M").to_string())
+                .map(|d| d.with_timezone(&Local).format("%Y-%m-%d %H:%M").to_string())
                 .unwrap_or_else(|| "—".to_string());
 
             let lifespan = if let Some(death) = sheep.died {

@@ -45,9 +45,9 @@ fn render_tabs(frame: &mut Frame, app: &App, area: Rect) {
     let tabs = Line::from(vec![
         Span::styled(" Flock ", farm_style),
         Span::styled(" ", Style::default().bg(Color::Rgb(20, 20, 20))),
-        Span::styled(" Log ", log_style),
+        Span::styled(" Graveyard ", log_style),
         Span::styled(
-            " ".repeat(area.width.saturating_sub(14) as usize),
+            " ".repeat(area.width.saturating_sub(20) as usize),
             Style::default().bg(Color::Rgb(20, 20, 20)),
         ),
     ]);
@@ -61,7 +61,7 @@ fn render_tabs(frame: &mut Frame, app: &App, area: Rect) {
 pub fn tab_click(col: u16) -> Option<Screen> {
     if col < 7 {
         Some(Screen::Farm)
-    } else if col >= 8 && col < 13 {
+    } else if col >= 8 && col < 19 {
         Some(Screen::Log)
     } else {
         None
