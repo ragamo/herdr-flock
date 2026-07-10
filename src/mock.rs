@@ -68,16 +68,16 @@ pub fn create_mock_farm() -> Farm {
 }
 
 fn find_free_spawn(farm: &Farm, rng: &mut impl Rng, sprite_w: f32, sprite_h: f32) -> (f32, f32) {
-    let max_x = (farm.width as f32 - sprite_w - 2.0).max(3.0);
-    let max_y = (farm.height as f32 - sprite_h - 1.0).max(3.0);
+    let max_x = (farm.width as f32 - sprite_w - 2.0).max(4.0);
+    let max_y = (farm.height as f32 - sprite_h - 1.0).max(4.0);
 
-    for _ in 0..50 {
+    for _ in 0..100 {
         let x = rng.gen_range(3.0..max_x);
         let y = rng.gen_range(3.0..max_y);
 
         let collides = farm.sheep.iter().filter(|s| s.is_alive()).any(|s| {
-            x < s.x + sprite_w
-                && x + sprite_w > s.x
+            x < s.x + sprite_w + 1.0
+                && x + sprite_w + 1.0 > s.x
                 && y < s.y + sprite_h
                 && y + sprite_h > s.y
         });
