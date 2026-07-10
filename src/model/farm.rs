@@ -20,6 +20,25 @@ impl Farm {
         }
     }
 
+    pub fn resize(&mut self, width: u16, height: u16) {
+        self.width = width;
+        self.height = height;
+
+        let margin_x = SPRITE_CHAR_WIDTH as f32 + 2.0;
+        let margin_y = SPRITE_CHAR_HEIGHT as f32 + 1.0;
+        let max_x = (width as f32 - margin_x).max(1.0);
+        let max_y = (height as f32 - margin_y).max(1.0);
+
+        for sheep in self.sheep.iter_mut().filter(|s| s.is_alive()) {
+            if sheep.x > max_x || sheep.y > max_y {
+                sheep.x = sheep.x.clamp(1.0, max_x);
+                sheep.y = sheep.y.clamp(1.0, max_y);
+                sheep.target_x = sheep.x;
+                sheep.target_y = sheep.y;
+            }
+        }
+    }
+
     pub fn tick(&mut self) {
         let mut rng = rand::thread_rng();
         let w = self.width as f32;

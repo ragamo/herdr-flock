@@ -83,6 +83,11 @@ fn run_loop(
     app: &mut App,
 ) -> io::Result<()> {
     loop {
+        let size = terminal.size()?;
+        let farm_w = size.width.saturating_sub(2);
+        let farm_h = size.height.saturating_sub(4);
+        app.farm.resize(farm_w, farm_h);
+
         terminal.draw(|frame| ui::render(frame, app))?;
 
         if event::poll(Duration::from_millis(100))? {
