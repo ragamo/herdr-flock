@@ -248,11 +248,13 @@ pub fn generate_trees(width: u16, height: u16, river_path: &[u16]) -> Vec<(u16, 
         let col = col_min + ((seed >> 33) as u16 % (col_max - col_min + 1));
         seed = lcg(seed);
         let row = row_min + ((seed >> 33) as u16 % (row_max - row_min + 1));
-        // Exclusion: river band ±2 at this column
-        let col_river = river_path.get(col as usize).copied().unwrap_or(0);
-        if row >= col_river.saturating_sub(2) && row <= col_river + 4 {
-            continue;
-        }
+        // Exclusion: river overlaps any of the 5 cols × 6 rows the tree occupies
+        let river_overlap = (0..5u16).any(|dc| {
+            let c = col.saturating_add(dc);
+            let rr = river_path.get(c as usize).copied().unwrap_or(0);
+            row < rr + 3 && row + 6 > rr.saturating_sub(1)
+        });
+        if river_overlap { continue; }
         // Exclusion: too close to another tree
         let too_close = trees.iter().any(|&(tc, tr)| {
             (col as i32 - tc as i32).abs() < 8 && (row as i32 - tr as i32).abs() < 8
@@ -300,11 +302,13 @@ pub fn generate_rocks(width: u16, height: u16, river_path: &[u16], trees: &[(u16
         seed = lcg(seed);
         let row = row_min + ((seed >> 33) as u16 % (row_max - row_min + 1));
 
-        // Exclusion: river band
-        let col_river = river_path.get(col as usize).copied().unwrap_or(0);
-        if row >= col_river.saturating_sub(1) && row <= col_river + 3 {
-            continue;
-        }
+        // Exclusion: river overlaps any of the 6 cols × 4 rows the rock occupies
+        let river_overlap = (0..6u16).any(|dc| {
+            let c = col.saturating_add(dc);
+            let rr = river_path.get(c as usize).copied().unwrap_or(0);
+            row < rr + 3 && row + 4 > rr.saturating_sub(1)
+        });
+        if river_overlap { continue; }
         // Exclusion: too close to a tree
         let near_tree = trees.iter().any(|&(tc, tr)| {
             (col as i32 - tc as i32).abs() < 6 && (row as i32 - tr as i32).abs() < 7
