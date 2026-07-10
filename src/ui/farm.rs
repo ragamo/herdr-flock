@@ -202,12 +202,12 @@ fn render_tooltip(frame: &mut Frame, sheep: &crate::model::sheep::Sheep, area: R
 
     let tooltip = Paragraph::new(Line::from(Span::styled(
         text,
-        Style::default().fg(Color::Black).bg(Color::White),
+        Style::default().fg(Color::White),
     )))
     .block(
         Block::default()
             .borders(Borders::ALL)
-            .border_style(Style::default().fg(Color::White).bg(Color::Rgb(40, 40, 40)))
+            .border_style(Style::default().fg(Color::DarkGray).bg(Color::Rgb(40, 40, 40)))
             .style(Style::default().bg(Color::Rgb(40, 40, 40))),
     );
 
