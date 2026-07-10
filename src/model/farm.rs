@@ -133,9 +133,9 @@ impl Farm {
                 });
 
                 let collides_tree = self.trees.iter().any(|&(tc, tr)| {
-                    new_x < tc as f32 + 3.0
+                    new_x < tc as f32 + 6.0
                         && new_x + sprite_w > tc as f32 - 1.0
-                        && new_y < tr as f32 + 2.0
+                        && new_y < tr as f32 + 6.0
                         && new_y + sprite_h > tr as f32
                 });
 
@@ -234,7 +234,7 @@ pub fn generate_trees(width: u16, height: u16, river_row: u16) -> Vec<(u16, u16)
         }
         // Exclusion: too close to another tree
         let too_close = trees.iter().any(|&(tc, tr)| {
-            (col as i32 - tc as i32).abs() < 5 && (row as i32 - tr as i32).abs() < 5
+            (col as i32 - tc as i32).abs() < 8 && (row as i32 - tr as i32).abs() < 8
         });
         if too_close {
             continue;

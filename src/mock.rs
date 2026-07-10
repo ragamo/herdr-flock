@@ -86,9 +86,9 @@ fn find_free_spawn(farm: &Farm, rng: &mut impl Rng, sprite_w: f32, sprite_h: f32
         });
 
         let collides_trees = farm.trees.iter().any(|&(tc, tr)| {
-            x < tc as f32 + 3.0
+            x < tc as f32 + 6.0
                 && x + sprite_w > tc as f32 - 1.0
-                && y < tr as f32 + 3.0
+                && y < tr as f32 + 7.0
                 && y + sprite_h > tr as f32 - 1.0
         });
 
