@@ -227,9 +227,12 @@ pub fn generate_trees(width: u16, height: u16, river_path: &[u16]) -> Vec<(u16, 
     let target = ((width as u32 * height as u32) / 700).min(10) as usize;
     let mut trees: Vec<(u16, u16)> = Vec::with_capacity(target);
 
+    let mut rng = rand::thread_rng();
+    let entropy: u64 = rng.gen_range(0..u64::MAX);
     let mut seed: u64 = (width as u64)
         .wrapping_mul(48271)
-        .wrapping_add((height as u64).wrapping_mul(16807));
+        .wrapping_add((height as u64).wrapping_mul(16807))
+        .wrapping_add(entropy);
 
     let lcg = |s: u64| -> u64 {
         s.wrapping_mul(6364136223846793005)
@@ -237,10 +240,9 @@ pub fn generate_trees(width: u16, height: u16, river_path: &[u16]) -> Vec<(u16, 
     };
 
     let col_min: u16 = 3;
-    let col_max: u16 = width.saturating_sub(4);
+    let col_max: u16 = width.saturating_sub(6);
     let row_min: u16 = 3;
-    let row_max: u16 = height.saturating_sub(4);
-    let spawn_zone_max_col = width / 3;
+    let row_max: u16 = height.saturating_sub(6);
 
     let mut attempts = 0usize;
     while trees.len() < target && attempts < target * 40 {
@@ -249,11 +251,6 @@ pub fn generate_trees(width: u16, height: u16, river_path: &[u16]) -> Vec<(u16, 
         let col = col_min + ((seed >> 33) as u16 % (col_max - col_min + 1));
         seed = lcg(seed);
         let row = row_min + ((seed >> 33) as u16 % (row_max - row_min + 1));
-
-        // Exclusion: left-third spawn zone
-        if col < spawn_zone_max_col + 2 {
-            continue;
-        }
         // Exclusion: river band ±2 at this column
         let col_river = river_path.get(col as usize).copied().unwrap_or(0);
         if row >= col_river.saturating_sub(2) && row <= col_river + 4 {

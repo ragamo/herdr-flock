@@ -198,7 +198,6 @@ fn terrain_cell(col: u16, row: u16, ctx: &TerrainContext) -> (&'static str, Colo
     }
 
     // 6. Grass texture + clover/dots (day-scaled)
-    let grass_factor = 1.0 - n * 0.7;
     let h_val = cell_hash(col, row);
     let patch = (h_val % 4) as f32 / 4.0;
     let grass_bg = dim_color(
