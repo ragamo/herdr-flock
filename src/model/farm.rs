@@ -9,28 +9,29 @@ pub struct Farm {
     pub height: u16,
     pub live_mode: bool,
     pub trees: Vec<(u16, u16)>,
-    pub river_row: u16,
+    /// Per-column row offset for the river (len == width)
+    pub river_path: Vec<u16>,
 }
 
 impl Farm {
     pub fn new(width: u16, height: u16, live_mode: bool) -> Self {
-        let river_row = compute_river_row(height);
-        let trees = generate_trees(width, height, river_row);
+        let river_path = generate_river_path(width, height);
+        let trees = generate_trees(width, height, &river_path);
         Self {
             sheep: Vec::new(),
             width,
             height,
             live_mode,
             trees,
-            river_row,
+            river_path,
         }
     }
 
     pub fn resize(&mut self, width: u16, height: u16) {
         self.width = width;
         self.height = height;
-        self.river_row = compute_river_row(height);
-        self.trees = generate_trees(width, height, self.river_row);
+        self.river_path = generate_river_path(width, height);
+        self.trees = generate_trees(width, height, &self.river_path);
 
         let margin_x = SPRITE_CHAR_WIDTH as f32 + 2.0;
         let margin_y = SPRITE_CHAR_HEIGHT as f32 + 1.0;
@@ -189,11 +190,36 @@ impl Farm {
     }
 }
 
-pub fn compute_river_row(height: u16) -> u16 {
-    (height / 3).clamp(4, height.saturating_sub(6))
+pub fn generate_river_path(width: u16, height: u16) -> Vec<u16> {
+    let mut rng = rand::thread_rng();
+    let h = height as f32;
+    let w = width as f32;
+    let min_row = 3.0f32;
+    let max_row = (h - 5.0).max(min_row + 1.0);
+
+    // Random start and end rows — river can cross the full height
+    let start_row = rng.gen_range(min_row..max_row);
+    let end_row   = rng.gen_range(min_row..max_row);
+
+    // Sinusoidal wobble on top of the linear drift
+    let amplitude = rng.gen_range(2.0f32..5.0);
+    let freq1  = rng.gen_range(0.03f32..0.09);
+    let freq2  = rng.gen_range(0.01f32..0.04);
+    let phase1 = rng.gen_range(0.0f32..std::f32::consts::TAU);
+    let phase2 = rng.gen_range(0.0f32..std::f32::consts::TAU);
+
+    (0..width)
+        .map(|col| {
+            let t = col as f32 / w.max(1.0);
+            let linear = start_row + (end_row - start_row) * t;
+            let wobble = amplitude * (freq1 * col as f32 + phase1).sin()
+                + (amplitude * 0.4) * (freq2 * col as f32 + phase2).sin();
+            (linear + wobble).clamp(min_row, max_row) as u16
+        })
+        .collect()
 }
 
-pub fn generate_trees(width: u16, height: u16, river_row: u16) -> Vec<(u16, u16)> {
+pub fn generate_trees(width: u16, height: u16, river_path: &[u16]) -> Vec<(u16, u16)> {
     if width < 20 || height < 14 {
         return Vec::new();
     }
@@ -228,8 +254,9 @@ pub fn generate_trees(width: u16, height: u16, river_row: u16) -> Vec<(u16, u16)
         if col < spawn_zone_max_col + 2 {
             continue;
         }
-        // Exclusion: river band ±1
-        if row >= river_row.saturating_sub(1) && row <= river_row + 3 {
+        // Exclusion: river band ±2 at this column
+        let col_river = river_path.get(col as usize).copied().unwrap_or(0);
+        if row >= col_river.saturating_sub(2) && row <= col_river + 4 {
             continue;
         }
         // Exclusion: too close to another tree

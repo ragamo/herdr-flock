@@ -49,7 +49,7 @@ struct TerrainContext<'a> {
     night_t: f32,
     bg_color: Color,
     trees: &'a [(u16, u16)],
-    river_row: u16,
+    river_path: &'a [u16],
 }
 
 // ─── Render entry point ─────────────────────────────────────────────────────
@@ -97,7 +97,7 @@ fn render_terrain(frame: &mut Frame, app: &App, area: Rect, bg_color: Color, nig
         night_t,
         bg_color,
         trees: &app.farm.trees,
-        river_row: app.farm.river_row,
+        river_path: &app.farm.river_path,
     };
 
     let mut lines: Vec<Line> = (0..inner.height)
@@ -165,8 +165,9 @@ fn terrain_cell(col: u16, row: u16, ctx: &TerrainContext) -> (&'static str, Colo
         };
     }
 
-    // 3. River
-    if row == ctx.river_row || row == ctx.river_row + 1 {
+    // 3. River — follows per-column path
+    let col_river_row = ctx.river_path.get(col as usize).copied().unwrap_or(0);
+    if row == col_river_row || row == col_river_row + 1 {
         let phase = (ctx.tick / 4 + col as u64) % 3;
         let water_fg = match phase {
             0 => lerp_color((80, 160, 220), (30, 60, 110), n),

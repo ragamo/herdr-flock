@@ -83,11 +83,20 @@ fn run_loop(
     terminal: &mut Terminal<CrosstermBackend<io::Stdout>>,
     app: &mut App,
 ) -> io::Result<()> {
+    let mut last_size = terminal.size()?;
+    app.farm.resize(
+        last_size.width.saturating_sub(2),
+        last_size.height.saturating_sub(4),
+    );
+
     loop {
         let size = terminal.size()?;
-        let farm_w = size.width.saturating_sub(2);
-        let farm_h = size.height.saturating_sub(4);
-        app.farm.resize(farm_w, farm_h);
+        if size != last_size {
+            last_size = size;
+            let farm_w = size.width.saturating_sub(2);
+            let farm_h = size.height.saturating_sub(4);
+            app.farm.resize(farm_w, farm_h);
+        }
 
         terminal.draw(|frame| ui::render(frame, app))?;
 
