@@ -72,36 +72,47 @@ impl Farm {
 
             if !self.live_mode && self.sheep[i].state_timer == 0 {
                 let new_state = match rng.gen_range(0..10) {
-                    0..=5 => SheepState::Idle,
-                    6..=7 => SheepState::Eating,
-                    8 => SheepState::Sleeping,
+                    0..=3 => SheepState::Idle,
+                    4..=6 => SheepState::Eating,
+                    7..=8 => SheepState::Sleeping,
                     _ => self.sheep[i].state,
                 };
                 self.sheep[i].state = new_state;
-                self.sheep[i].state_timer = rng.gen_range(60..300);
+                self.sheep[i].state_timer = match new_state {
+                    SheepState::Eating => rng.gen_range(150..400),
+                    SheepState::Sleeping => rng.gen_range(200..500),
+                    _ => rng.gen_range(60..250),
+                };
 
                 if new_state == SheepState::Idle {
                     self.sheep[i].target_x = rng.gen_range(2.0..w - margin_x);
                     self.sheep[i].target_y = rng.gen_range(2.0..h - margin_y);
                 }
+                // Bias direction toward Up/Down so front/back sprites show more
+                self.sheep[i].direction = match rng.gen_range(0..6) {
+                    0 | 1 => Direction::Down,
+                    2 | 3 => Direction::Up,
+                    4 => Direction::Left,
+                    _ => Direction::Right,
+                };
             }
 
             if self.live_mode && self.sheep[i].state_timer == 0 {
                 let base_state = self.sheep[i].state;
                 if base_state == SheepState::Idle {
-                    self.sheep[i].state = match rng.gen_range(0..6) {
-                        0 => SheepState::Eating,
-                        1 => SheepState::Sleeping,
+                    self.sheep[i].state = match rng.gen_range(0..4) {
+                        0 | 1 => SheepState::Eating,
+                        2 => SheepState::Sleeping,
                         _ => SheepState::Idle,
                     };
                 }
                 self.sheep[i].target_x = rng.gen_range(2.0..w - margin_x);
                 self.sheep[i].target_y = rng.gen_range(2.0..h - margin_y);
                 self.sheep[i].state_timer = rng.gen_range(80..200);
-                self.sheep[i].direction = match rng.gen_range(0..4) {
-                    0 => Direction::Up,
-                    1 => Direction::Down,
-                    2 => Direction::Left,
+                self.sheep[i].direction = match rng.gen_range(0..6) {
+                    0 | 1 => Direction::Down,
+                    2 | 3 => Direction::Up,
+                    4 => Direction::Left,
                     _ => Direction::Right,
                 };
             }
