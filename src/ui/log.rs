@@ -73,13 +73,21 @@ fn render_table(frame: &mut Frame, app: &App, area: Rect) {
         })
         .collect();
 
-    filtered.sort_by_key(|(_, s)| !s.is_alive());
+    filtered.sort_by(|(_, a), (_, b)| {
+        match (a.is_alive(), b.is_alive()) {
+            (true, false) => std::cmp::Ordering::Less,
+            (false, true) => std::cmp::Ordering::Greater,
+            (false, false) => b.died.cmp(&a.died),
+            (true, true) => std::cmp::Ordering::Equal,
+        }
+    });
 
     let header = Row::new(vec!["", "Name", "Project", "Born", "Died", "Tasks", "Lifespan"])
         .style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD));
 
-    let scroll = app.log_scroll as usize;
     let visible_rows = (area.height.saturating_sub(3)) as usize;
+    let max_scroll = filtered.len().saturating_sub(visible_rows);
+    let scroll = (app.log_scroll as usize).min(max_scroll);
 
     let rows: Vec<Row> = filtered
         .iter()
