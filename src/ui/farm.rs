@@ -388,8 +388,8 @@ fn px_color(px: Px, working_pulse: bool, bg_color: Color, night_t: f32) -> Color
 
 fn render_tooltip(frame: &mut Frame, sheep: &crate::model::sheep::Sheep, area: Rect) {
     let text = format!(
-        " {} | {} | tasks: {} ",
-        sheep.name, sheep.project, sheep.tasks_completed
+        " {} | {} | {} ",
+        sheep.name, sheep.project, sheep.agent
     );
     let width = text.len() as u16 + 2;
     let x = (area.width / 2).saturating_sub(width / 2) + area.x;

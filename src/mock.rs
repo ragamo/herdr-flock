@@ -38,7 +38,7 @@ pub fn create_mock_farm() -> Farm {
             born,
             died,
             project: projects[i].to_string(),
-            tasks_completed: rng.gen_range(1..50),
+            agent: "claude".to_string(),
             state: if is_dead {
                 SheepState::Idle
             } else {

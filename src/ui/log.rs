@@ -155,7 +155,7 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect) {
 fn render_table(frame: &mut Frame, app: &App, area: Rect) {
     let indices = sorted_log_indices(&app.farm, app.log_filter);
 
-    let header = Row::new(vec!["", "Name", "Project", "Born", "Died", "Tasks", "Lifespan"])
+    let header = Row::new(vec!["", "Name", "Project", "Born", "Died", "Agent", "Lifespan"])
         .style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD));
 
     let visible_rows = (area.height.saturating_sub(3)) as usize;
@@ -204,7 +204,7 @@ fn render_table(frame: &mut Frame, app: &App, area: Rect) {
                 sheep.project.clone(),
                 born,
                 died,
-                sheep.tasks_completed.to_string(),
+                sheep.agent.clone(),
                 lifespan,
             ])
             .style(style)
@@ -273,7 +273,7 @@ fn render_epitaph(frame: &mut Frame, sheep: &Sheep, area: Rect) {
         Line::from(""),
         Line::from(Span::styled(format!("  Born:  {born}"), Style::default().fg(Color::DarkGray))),
         Line::from(Span::styled(format!("  Died:  {died}"), Style::default().fg(Color::DarkGray))),
-        Line::from(Span::styled(format!("  Tasks: {}", sheep.tasks_completed), Style::default().fg(Color::DarkGray))),
+        Line::from(Span::styled(format!("  Agent: {}", sheep.agent), Style::default().fg(Color::DarkGray))),
         Line::from(Span::styled(format!("  Proj:  {}", sheep.project), Style::default().fg(Color::DarkGray))),
     ];
 

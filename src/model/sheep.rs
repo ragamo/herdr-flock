@@ -25,7 +25,7 @@ pub struct Sheep {
     pub born: DateTime<Utc>,
     pub died: Option<DateTime<Utc>>,
     pub project: String,
-    pub tasks_completed: u32,
+    pub agent: String,
     pub state: SheepState,
     pub direction: Direction,
     #[serde(skip)]

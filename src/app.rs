@@ -365,7 +365,7 @@ impl App {
             born: Utc::now(),
             died: None,
             project,
-            tasks_completed: 0,
+            agent: agent.agent.clone().unwrap_or_else(|| "claude".to_string()),
             state: map_agent_status(&agent.agent_status),
             direction: match rng.gen_range(0..4) {
                 0 => Direction::Up,
