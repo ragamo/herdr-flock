@@ -162,8 +162,10 @@ impl App {
         let mut rng = rand::thread_rng();
         let w = self.farm.width as f32;
         let h = self.farm.height as f32;
-        let x = rng.gen_range(3.0..w - 15.0);
-        let y = rng.gen_range(3.0..h - 8.0);
+        let sprite_w = crate::animation::sprites::SPRITE_CHAR_WIDTH as f32;
+        let sprite_h = crate::animation::sprites::SPRITE_CHAR_HEIGHT as f32;
+
+        let (x, y) = self.find_free_spawn(&mut rng, w, h, sprite_w, sprite_h);
 
         let project = agent
             .cwd
@@ -197,6 +199,37 @@ impl App {
         };
 
         self.farm.sheep.push(sheep);
+    }
+
+    fn find_free_spawn(
+        &self,
+        rng: &mut impl rand::Rng,
+        w: f32,
+        h: f32,
+        sprite_w: f32,
+        sprite_h: f32,
+    ) -> (f32, f32) {
+        let max_x = (w - sprite_w - 2.0).max(3.0);
+        let max_y = (h - sprite_h - 1.0).max(3.0);
+
+        for _ in 0..50 {
+            let x = rng.gen_range(3.0..max_x);
+            let y = rng.gen_range(3.0..max_y);
+
+            let collides = self.farm.sheep.iter().filter(|s| s.is_alive()).any(|s| {
+                x < s.x + sprite_w
+                    && x + sprite_w > s.x
+                    && y < s.y + sprite_h
+                    && y + sprite_h > s.y
+            });
+
+            if !collides {
+                return (x, y);
+            }
+        }
+
+        // Fallback: allow overlap in extreme cases
+        (rng.gen_range(3.0..max_x), rng.gen_range(3.0..max_y))
     }
 
     fn handle_farm_key(&mut self, key: &KeyEvent) {
