@@ -10,7 +10,7 @@ use std::env;
 use std::io;
 use std::path::Path;
 use std::process::Command;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use crossterm::{
     event::{self, DisableMouseCapture, EnableMouseCapture, Event, KeyCode},
@@ -89,6 +89,9 @@ fn run_loop(
         last_size.height.saturating_sub(4),
     );
 
+    let tick_interval = Duration::from_millis(100);
+    let mut last_tick = Instant::now();
+
     loop {
         let size = terminal.size()?;
         if size != last_size {
@@ -100,7 +103,8 @@ fn run_loop(
 
         terminal.draw(|frame| ui::render(frame, app))?;
 
-        if event::poll(Duration::from_millis(100))? {
+        let timeout = tick_interval.saturating_sub(last_tick.elapsed());
+        if event::poll(timeout)? {
             let ev = event::read()?;
             match &ev {
                 Event::Key(key) => match key.code {
@@ -113,6 +117,9 @@ fn run_loop(
             }
         }
 
-        app.tick();
+        if last_tick.elapsed() >= tick_interval {
+            app.tick();
+            last_tick = Instant::now();
+        }
     }
 }
