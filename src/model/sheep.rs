@@ -20,6 +20,7 @@ pub enum Direction {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Sheep {
     pub id: String,
+    pub pane_id: String,
     pub name: String,
     pub born: DateTime<Utc>,
     pub died: Option<DateTime<Utc>>,

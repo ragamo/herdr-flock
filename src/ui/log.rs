@@ -61,7 +61,7 @@ fn render_header(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn render_table(frame: &mut Frame, app: &App, area: Rect) {
-    let filtered: Vec<_> = app
+    let mut filtered: Vec<_> = app
         .farm
         .sheep
         .iter()
@@ -72,6 +72,8 @@ fn render_table(frame: &mut Frame, app: &App, area: Rect) {
             LogFilter::Dead => !s.is_alive(),
         })
         .collect();
+
+    filtered.sort_by_key(|(_, s)| !s.is_alive());
 
     let header = Row::new(vec!["", "Name", "Project", "Born", "Died", "Tasks", "Lifespan"])
         .style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD));

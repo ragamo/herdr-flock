@@ -142,7 +142,7 @@ impl App {
                     let active_panes: Vec<String> =
                         agents.iter().map(|a| a.pane_id.clone()).collect();
                     for sheep in self.farm.sheep.iter_mut().filter(|s| s.is_alive()) {
-                        if !active_panes.contains(&sheep.id) {
+                        if !active_panes.contains(&sheep.pane_id) {
                             sheep.died = Some(Utc::now());
                             sheep.state = SheepState::Sleeping;
                         }
@@ -155,14 +155,14 @@ impl App {
     }
 
     fn upsert_sheep_from_agent(&mut self, agent: &SnapshotAgent) {
-        // If exists with same pane_id (alive or dead), update it
+        // Match by pane_id for alive sheep only — dead sheep with same pane_id
+        // are a different life, identified by pane_id+name together in the DB
         if let Some(sheep) = self
             .farm
             .sheep
             .iter_mut()
-            .find(|s| s.id == agent.pane_id)
+            .find(|s| s.is_alive() && s.pane_id == agent.pane_id)
         {
-            sheep.died = None;
             sheep.state = map_agent_status(&agent.agent_status);
             return;
         }
@@ -176,10 +176,11 @@ impl App {
             .and_then(|p| p.split('/').last().map(String::from))
             .unwrap_or_else(|| agent.workspace_id.clone());
 
-        let name = project.clone();
+        let name = random_sheep_name(&mut rng);
 
         let sheep = Sheep {
-            id: agent.pane_id.clone(),
+            id: format!("{}:{}", agent.pane_id, name),
+            pane_id: agent.pane_id.clone(),
             name,
             born: Utc::now(),
             died: None,
@@ -302,4 +303,27 @@ fn find_free_spawn_in(
     }
 
     (rng.gen_range(3.0..max_x), rng.gen_range(3.0..max_y))
+}
+
+const SHEEP_NAMES: &[&str] = &[
+    "Dolly", "Woolma", "Clover", "Nimbus", "Cotton",
+    "Patches", "Fleecy", "Misty", "Pepper", "Daisy",
+    "Luna", "Maple", "Olive", "Hazel", "Sunny",
+    "Pebble", "Willow", "Biscuit", "Mochi", "Truffle",
+    "Sage", "Cinnamon", "Nutmeg", "Cocoa", "Velvet",
+    "Pearl", "Ember", "Frost", "Bramble", "Thistle",
+    "Poppy", "Fern", "Ivy", "Basil", "Rosie",
+    "Ginger", "Toffee", "Pudding", "Crumble", "Scone",
+    "Baa-rbara", "Shearlock", "Lambchop", "Wooly",
+    "Churro", "Marshmallow", "Puffin", "Snowball",
+    "Buttercup", "Honey", "Caramel", "Waffles",
+    "Nube", "Algodón", "Canela", "Merino",
+    "Cloud", "Stormy", "Thunder", "Breeze",
+    "Cashew", "Pretzel", "Dumpling", "Tofu",
+    "Muffin", "Cookie", "Brownie", "Meringue",
+    "Orbit", "Comet", "Nova", "Pixel",
+];
+
+pub fn random_sheep_name(rng: &mut impl rand::Rng) -> String {
+    SHEEP_NAMES[rng.gen_range(0..SHEEP_NAMES.len())].to_string()
 }

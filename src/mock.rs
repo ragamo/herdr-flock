@@ -29,9 +29,12 @@ pub fn create_mock_farm() -> Farm {
 
         let (x, y) = find_free_spawn(&farm, &mut rng, sprite_w, sprite_h);
 
+        let mock_name = crate::app::random_sheep_name(&mut rng);
+        let mock_pane = format!("agent-{:03}", i);
         let sheep = Sheep {
-            id: format!("agent-{:03}", i),
-            name: projects[i % projects.len()].to_string(),
+            id: format!("{}:{}", mock_pane, mock_name),
+            pane_id: mock_pane,
+            name: mock_name,
             born,
             died,
             project: projects[i].to_string(),
