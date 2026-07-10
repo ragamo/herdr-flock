@@ -8,6 +8,7 @@ use crate::herdr::{HerdrEvent, SnapshotAgent};
 use crate::mock;
 use crate::model::farm::Farm;
 use crate::model::sheep::{Direction, Sheep, SheepState};
+use crate::storage;
 use crate::ui;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,19 +38,36 @@ pub enum LogFilter {
 impl App {
     pub fn new(herdr_rx: Option<mpsc::Receiver<HerdrEvent>>) -> Self {
         let connected = herdr_rx.is_some();
+        let mut farm = if connected {
+            Farm::new(100, 40, true)
+        } else {
+            mock::create_mock_farm()
+        };
+
+        if connected {
+            let history = storage::load_flock();
+            for sheep in history {
+                if !sheep.is_alive() {
+                    farm.sheep.push(sheep);
+                }
+            }
+        }
+
         Self {
             screen: Screen::Farm,
-            farm: if connected {
-                Farm::new(100, 40, true)
-            } else {
-                mock::create_mock_farm()
-            },
+            farm,
             tick_count: 0,
             selected_sheep: None,
             log_scroll: 0,
             log_filter: LogFilter::All,
             herdr_rx,
             connected,
+        }
+    }
+
+    pub fn save(&self) {
+        if self.connected {
+            let _ = storage::save_flock(&self.farm.sheep);
         }
     }
 
@@ -102,14 +120,16 @@ impl App {
             None => return,
         };
 
+        if events.is_empty() {
+            return;
+        }
+
         for event in events {
             match event {
                 HerdrEvent::AgentList { agents } => {
-                    // Update or create sheep for each agent
                     for agent in &agents {
                         self.upsert_sheep_from_agent(agent);
                     }
-                    // Mark sheep as dead if their pane is no longer in the list
                     let active_panes: Vec<String> =
                         agents.iter().map(|a| a.pane_id.clone()).collect();
                     for sheep in self.farm.sheep.iter_mut().filter(|s| s.is_alive()) {
@@ -121,6 +141,8 @@ impl App {
                 }
             }
         }
+
+        self.save();
     }
 
     fn upsert_sheep_from_agent(&mut self, agent: &SnapshotAgent) {

@@ -34,6 +34,7 @@ fn main() -> io::Result<()> {
 
     let mut app = App::new(herdr_rx);
     let result = run_loop(&mut terminal, &mut app);
+    app.save();
 
     disable_raw_mode()?;
     execute!(

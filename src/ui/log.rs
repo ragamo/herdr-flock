@@ -1,3 +1,4 @@
+use chrono::Duration;
 use ratatui::{
     layout::{Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style},
@@ -7,6 +8,20 @@ use ratatui::{
 };
 
 use crate::app::{App, LogFilter};
+
+fn format_duration(dur: Duration) -> String {
+    let days = dur.num_days();
+    let hours = dur.num_hours() % 24;
+    let mins = dur.num_minutes() % 60;
+
+    if days > 0 {
+        format!("{days}d {hours}h")
+    } else if hours > 0 {
+        format!("{hours}h {mins}m")
+    } else {
+        format!("{mins}m")
+    }
+}
 
 pub fn render(frame: &mut Frame, app: &App, area: Rect) {
     let chunks = Layout::default()
@@ -58,7 +73,7 @@ fn render_table(frame: &mut Frame, app: &App, area: Rect) {
         })
         .collect();
 
-    let header = Row::new(vec!["", "Name", "Project", "Born", "Died", "Tasks"])
+    let header = Row::new(vec!["", "Name", "Project", "Born", "Died", "Tasks", "Lifespan"])
         .style(Style::default().fg(Color::DarkGray).add_modifier(Modifier::BOLD));
 
     let scroll = app.log_scroll as usize;
@@ -76,11 +91,19 @@ fn render_table(frame: &mut Frame, app: &App, area: Rect) {
                 Color::DarkGray
             };
 
-            let born = sheep.born.format("%Y-%m-%d").to_string();
+            let born = sheep.born.format("%Y-%m-%d %H:%M").to_string();
             let died = sheep
                 .died
-                .map(|d| d.format("%Y-%m-%d").to_string())
+                .map(|d| d.format("%Y-%m-%d %H:%M").to_string())
                 .unwrap_or_else(|| "—".to_string());
+
+            let lifespan = if let Some(death) = sheep.died {
+                let dur = death - sheep.born;
+                format_duration(dur)
+            } else {
+                let dur = chrono::Utc::now() - sheep.born;
+                format!("{}~", format_duration(dur))
+            };
 
             let is_selected = app.selected_sheep == Some(*i);
             let style = if is_selected {
@@ -96,6 +119,7 @@ fn render_table(frame: &mut Frame, app: &App, area: Rect) {
                 born,
                 died,
                 sheep.tasks_completed.to_string(),
+                lifespan,
             ])
             .style(style)
         })
@@ -103,11 +127,12 @@ fn render_table(frame: &mut Frame, app: &App, area: Rect) {
 
     let widths = [
         Constraint::Length(2),
-        Constraint::Length(12),
+        Constraint::Length(14),
         Constraint::Length(16),
-        Constraint::Length(12),
-        Constraint::Length(12),
+        Constraint::Length(18),
+        Constraint::Length(18),
         Constraint::Length(6),
+        Constraint::Length(10),
     ];
 
     let table = Table::new(rows, widths)

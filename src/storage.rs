@@ -1,5 +1,3 @@
-#![allow(dead_code)]
-
 use std::fs;
 use std::path::PathBuf;
 
@@ -19,12 +17,14 @@ pub fn save_flock(sheep: &[Sheep]) -> std::io::Result<()> {
     fs::write(path, json)
 }
 
-pub fn load_flock() -> std::io::Result<Vec<Sheep>> {
+pub fn load_flock() -> Vec<Sheep> {
     let path = data_dir().join("flock.json");
     if !path.exists() {
-        return Ok(Vec::new());
+        return Vec::new();
     }
-    let json = fs::read_to_string(path)?;
-    let sheep: Vec<Sheep> = serde_json::from_str(&json)?;
-    Ok(sheep)
+    let json = match fs::read_to_string(&path) {
+        Ok(j) => j,
+        Err(_) => return Vec::new(),
+    };
+    serde_json::from_str(&json).unwrap_or_default()
 }
