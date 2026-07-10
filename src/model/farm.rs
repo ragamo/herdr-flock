@@ -8,21 +8,29 @@ pub struct Farm {
     pub width: u16,
     pub height: u16,
     pub live_mode: bool,
+    pub trees: Vec<(u16, u16)>,
+    pub river_row: u16,
 }
 
 impl Farm {
     pub fn new(width: u16, height: u16, live_mode: bool) -> Self {
+        let river_row = compute_river_row(height);
+        let trees = generate_trees(width, height, river_row);
         Self {
             sheep: Vec::new(),
             width,
             height,
             live_mode,
+            trees,
+            river_row,
         }
     }
 
     pub fn resize(&mut self, width: u16, height: u16) {
         self.width = width;
         self.height = height;
+        self.river_row = compute_river_row(height);
+        self.trees = generate_trees(width, height, self.river_row);
 
         let margin_x = SPRITE_CHAR_WIDTH as f32 + 2.0;
         let margin_y = SPRITE_CHAR_HEIGHT as f32 + 1.0;
@@ -75,7 +83,6 @@ impl Farm {
 
             if self.live_mode && self.sheep[i].state_timer == 0 {
                 let base_state = self.sheep[i].state;
-                // Idle sheep can do cosmetic sub-activities
                 if base_state == SheepState::Idle {
                     self.sheep[i].state = match rng.gen_range(0..6) {
                         0 => SheepState::Eating,
@@ -113,7 +120,7 @@ impl Farm {
                 new_x = new_x.clamp(1.0, w - margin_x);
                 new_y = new_y.clamp(1.0, h - margin_y);
 
-                let collides = (0..len).any(|j| {
+                let collides_sheep = (0..len).any(|j| {
                     if j == i || !self.sheep[j].is_alive() {
                         return false;
                     }
@@ -124,6 +131,15 @@ impl Farm {
                         && new_y < oy + sprite_h
                         && new_y + sprite_h > oy
                 });
+
+                let collides_tree = self.trees.iter().any(|&(tc, tr)| {
+                    new_x < tc as f32 + 3.0
+                        && new_x + sprite_w > tc as f32 - 1.0
+                        && new_y < tr as f32 + 2.0
+                        && new_y + sprite_h > tr as f32
+                });
+
+                let collides = collides_sheep || collides_tree;
 
                 if !collides {
                     if (new_x - self.sheep[i].x).abs() > 0.001 {
@@ -171,4 +187,61 @@ impl Farm {
             })
             .map(|(i, _)| i)
     }
+}
+
+pub fn compute_river_row(height: u16) -> u16 {
+    (height / 3).clamp(4, height.saturating_sub(6))
+}
+
+pub fn generate_trees(width: u16, height: u16, river_row: u16) -> Vec<(u16, u16)> {
+    if width < 20 || height < 14 {
+        return Vec::new();
+    }
+
+    let target = ((width as u32 * height as u32) / 700).min(10) as usize;
+    let mut trees: Vec<(u16, u16)> = Vec::with_capacity(target);
+
+    let mut seed: u64 = (width as u64)
+        .wrapping_mul(48271)
+        .wrapping_add((height as u64).wrapping_mul(16807));
+
+    let lcg = |s: u64| -> u64 {
+        s.wrapping_mul(6364136223846793005)
+            .wrapping_add(1442695040888963407)
+    };
+
+    let col_min: u16 = 3;
+    let col_max: u16 = width.saturating_sub(4);
+    let row_min: u16 = 3;
+    let row_max: u16 = height.saturating_sub(4);
+    let spawn_zone_max_col = width / 3;
+
+    let mut attempts = 0usize;
+    while trees.len() < target && attempts < target * 40 {
+        attempts += 1;
+        seed = lcg(seed);
+        let col = col_min + ((seed >> 33) as u16 % (col_max - col_min + 1));
+        seed = lcg(seed);
+        let row = row_min + ((seed >> 33) as u16 % (row_max - row_min + 1));
+
+        // Exclusion: left-third spawn zone
+        if col < spawn_zone_max_col + 2 {
+            continue;
+        }
+        // Exclusion: river band ±1
+        if row >= river_row.saturating_sub(1) && row <= river_row + 3 {
+            continue;
+        }
+        // Exclusion: too close to another tree
+        let too_close = trees.iter().any(|&(tc, tr)| {
+            (col as i32 - tc as i32).abs() < 5 && (row as i32 - tr as i32).abs() < 5
+        });
+        if too_close {
+            continue;
+        }
+
+        trees.push((col, row));
+    }
+
+    trees
 }

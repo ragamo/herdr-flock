@@ -11,11 +11,190 @@ use crate::model::sheep::{Direction, Sheep, SheepState};
 use crate::storage;
 use crate::ui;
 
+// ─── Atmosphere ─────────────────────────────────────────────────────────────
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WeatherKind {
+    Rain,
+    Snow,
+}
+
+pub enum WeatherPhase {
+    Clear   { countdown: u32 },
+    FadeIn  { kind: WeatherKind, remaining: u32 },
+    Active  { kind: WeatherKind, remaining: u32 },
+    FadeOut { kind: WeatherKind, remaining: u32 },
+}
+
+pub struct Particle {
+    pub x: f32,
+    pub y: f32,
+}
+
+pub struct Atmosphere {
+    pub time_of_day: u64,
+    pub phase: WeatherPhase,
+    pub precipitation: Vec<Particle>,
+}
+
+const DAY_CYCLE: u64 = 2400;
+const FADE_TICKS: u32 = 50;
+
+impl Atmosphere {
+    pub fn new() -> Self {
+        Self {
+            time_of_day: 0,
+            phase: WeatherPhase::Clear { countdown: 800 },
+            precipitation: Vec::new(),
+        }
+    }
+
+    /// 0.0 = full day, 1.0 = full night
+    pub fn night_factor(&self) -> f32 {
+        let t = self.time_of_day % DAY_CYCLE;
+        match t {
+            0..=199 => 0.0,
+            200..=1199 => 0.0,
+            1200..=1399 => (t - 1200) as f32 / 200.0,
+            1400..=2399 => 1.0,
+            _ => 0.0,
+        }
+    }
+
+    /// 0.0 = no precipitation, 1.0 = full
+    pub fn weather_intensity(&self) -> f32 {
+        match &self.phase {
+            WeatherPhase::Clear { .. } => 0.0,
+            WeatherPhase::FadeIn  { remaining, .. } => 1.0 - *remaining as f32 / FADE_TICKS as f32,
+            WeatherPhase::Active  { .. } => 1.0,
+            WeatherPhase::FadeOut { remaining, .. } => *remaining as f32 / FADE_TICKS as f32,
+        }
+    }
+
+    pub fn active_weather(&self) -> Option<WeatherKind> {
+        match &self.phase {
+            WeatherPhase::FadeIn  { kind, .. } |
+            WeatherPhase::Active  { kind, .. } |
+            WeatherPhase::FadeOut { kind, .. } => Some(*kind),
+            WeatherPhase::Clear { .. } => None,
+        }
+    }
+
+    pub fn advance(&mut self, farm_w: u16, farm_h: u16, rng: &mut impl Rng) {
+        self.time_of_day = (self.time_of_day + 1) % DAY_CYCLE;
+
+        let w = farm_w as f32;
+        let h = farm_h as f32;
+
+        // Advance weather state machine
+        let next_phase = match &mut self.phase {
+            WeatherPhase::Clear { countdown } => {
+                if *countdown == 0 {
+                    let roll = rng.gen_range(0..10);
+                    if roll < 2 {
+                        let kind = WeatherKind::Rain;
+                        self.seed_precipitation(kind, w, h, rng);
+                        Some(WeatherPhase::FadeIn { kind, remaining: FADE_TICKS })
+                    } else if roll < 3 {
+                        let kind = WeatherKind::Snow;
+                        self.seed_precipitation(kind, w, h, rng);
+                        Some(WeatherPhase::FadeIn { kind, remaining: FADE_TICKS })
+                    } else {
+                        *countdown = rng.gen_range(600..1200);
+                        None
+                    }
+                } else {
+                    *countdown -= 1;
+                    None
+                }
+            }
+            WeatherPhase::FadeIn { kind, remaining } => {
+                if *remaining == 0 {
+                    let duration = rng.gen_range(300..=600u32);
+                    Some(WeatherPhase::Active { kind: *kind, remaining: duration })
+                } else {
+                    *remaining -= 1;
+                    None
+                }
+            }
+            WeatherPhase::Active { kind, remaining } => {
+                if *remaining == 0 {
+                    Some(WeatherPhase::FadeOut { kind: *kind, remaining: FADE_TICKS })
+                } else {
+                    *remaining -= 1;
+                    None
+                }
+            }
+            WeatherPhase::FadeOut { remaining, .. } => {
+                if *remaining == 0 {
+                    self.precipitation.clear();
+                    Some(WeatherPhase::Clear { countdown: rng.gen_range(600..1200) })
+                } else {
+                    *remaining -= 1;
+                    None
+                }
+            }
+        };
+
+        if let Some(p) = next_phase {
+            self.phase = p;
+        }
+
+        // Move particles
+        self.move_particles(w, h);
+    }
+
+    fn seed_precipitation(&mut self, _kind: WeatherKind, w: f32, h: f32, rng: &mut impl Rng) {
+        self.precipitation.clear();
+        let count = ((w * h) / 80.0) as usize;
+        for _ in 0..count {
+            self.precipitation.push(Particle {
+                x: rng.gen_range(0.0..w),
+                y: rng.gen_range(0.0..h),
+            });
+        }
+    }
+
+    fn move_particles(&mut self, w: f32, h: f32) {
+        let tod = self.time_of_day as f32;
+        let weather = self.active_weather();
+        for p in &mut self.precipitation {
+            match weather {
+                Some(WeatherKind::Rain) => {
+                    p.y += 0.8;
+                    if p.y >= h {
+                        p.y = 0.0;
+                    }
+                }
+                Some(WeatherKind::Snow) => {
+                    p.y += 0.3;
+                    p.x += (tod * 0.02).sin() * 0.5;
+                    if p.y >= h { p.y = 0.0; }
+                    if p.x < 0.0 { p.x += w; }
+                    if p.x >= w { p.x -= w; }
+                }
+                None => {}
+            }
+        }
+    }
+}
+
+// ─── Screen / Filter ────────────────────────────────────────────────────────
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Screen {
     Farm,
     Log,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum LogFilter {
+    All,
+    Alive,
+    Dead,
+}
+
+// ─── App ────────────────────────────────────────────────────────────────────
 
 pub struct App {
     pub screen: Screen,
@@ -26,13 +205,7 @@ pub struct App {
     pub log_filter: LogFilter,
     pub herdr_rx: Option<mpsc::Receiver<HerdrEvent>>,
     pub connected: bool,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LogFilter {
-    All,
-    Alive,
-    Dead,
+    pub atmosphere: Atmosphere,
 }
 
 impl App {
@@ -71,6 +244,7 @@ impl App {
             log_filter: LogFilter::All,
             herdr_rx,
             connected,
+            atmosphere: Atmosphere::new(),
         }
     }
 
@@ -119,8 +293,16 @@ impl App {
 
     pub fn tick(&mut self) {
         self.tick_count = self.tick_count.wrapping_add(1);
+        self.tick_atmosphere();
         self.process_herdr_events();
         self.farm.tick();
+    }
+
+    fn tick_atmosphere(&mut self) {
+        let w = self.farm.width;
+        let h = self.farm.height;
+        let mut rng = rand::thread_rng();
+        self.atmosphere.advance(w, h, &mut rng);
     }
 
     fn process_herdr_events(&mut self) {
@@ -155,8 +337,6 @@ impl App {
     }
 
     fn upsert_sheep_from_agent(&mut self, agent: &SnapshotAgent) {
-        // Match by pane_id for alive sheep only — dead sheep with same pane_id
-        // are a different life, identified by pane_id+name together in the DB
         if let Some(sheep) = self
             .farm
             .sheep
@@ -253,7 +433,6 @@ impl App {
             MouseEventKind::ScrollDown => self.log_scroll = self.log_scroll.saturating_add(3),
             MouseEventKind::Down(_) => {
                 let row = mouse.row as usize;
-                // TAB_HEIGHT + header_panel(3) + table_border(1) + table_header_row(1)
                 let header_offset = (ui::TAB_HEIGHT + 5) as usize;
                 if row >= header_offset {
                     let display_row = (row - header_offset) + self.log_scroll as usize;
@@ -277,7 +456,7 @@ fn map_agent_status(status: &str) -> SheepState {
     }
 }
 
-fn find_free_spawn_in(
+pub fn find_free_spawn_in(
     farm: &Farm,
     rng: &mut impl rand::Rng,
     w: f32,
@@ -292,14 +471,21 @@ fn find_free_spawn_in(
         let x = rng.gen_range(3.0..max_x);
         let y = rng.gen_range(3.0..max_y);
 
-        let collides = farm.sheep.iter().filter(|s| s.is_alive()).any(|s| {
+        let collides_sheep = farm.sheep.iter().filter(|s| s.is_alive()).any(|s| {
             x < s.x + sprite_w + 1.0
                 && x + sprite_w + 1.0 > s.x
                 && y < s.y + sprite_h
                 && y + sprite_h > s.y
         });
 
-        if !collides {
+        let collides_trees = farm.trees.iter().any(|&(tc, tr)| {
+            x < tc as f32 + 3.0
+                && x + sprite_w > tc as f32 - 1.0
+                && y < tr as f32 + 3.0
+                && y + sprite_h > tr as f32 - 1.0
+        });
+
+        if !collides_sheep && !collides_trees {
             return (x, y);
         }
     }

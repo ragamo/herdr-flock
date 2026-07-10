@@ -7,13 +7,52 @@ use ratatui::{
 };
 
 use crate::animation::sprites::{get_sprite, Px, SPRITE_CHAR_HEIGHT, SPRITE_CHAR_WIDTH, SPRITE_PX_HEIGHT, SPRITE_PX_WIDTH};
-use crate::app::App;
+use crate::app::{App, Atmosphere, WeatherKind};
 use crate::model::sheep::SheepState;
 
-const COLOR_BG: Color = Color::Rgb(34, 80, 34);
-const COLOR_WHITE: Color = Color::Rgb(250, 250, 250);
-const COLOR_BLACK: Color = Color::Rgb(20, 20, 20);
-const COLOR_BEIGE: Color = Color::Rgb(210, 180, 140);
+// ─── Color utilities ────────────────────────────────────────────────────────
+
+fn lerp_u8(a: u8, b: u8, t: f32) -> u8 {
+    (a as f32 + (b as f32 - a as f32) * t.clamp(0.0, 1.0)) as u8
+}
+
+fn lerp_color(from: (u8, u8, u8), to: (u8, u8, u8), t: f32) -> Color {
+    Color::Rgb(lerp_u8(from.0, to.0, t), lerp_u8(from.1, to.1, t), lerp_u8(from.2, to.2, t))
+}
+
+fn dim_color(r: u8, g: u8, b: u8, factor: f32) -> Color {
+    let f = factor.clamp(0.0, 1.0);
+    Color::Rgb((r as f32 * f) as u8, (g as f32 * f) as u8, (b as f32 * f) as u8)
+}
+
+fn cell_hash(col: u16, row: u16) -> u32 {
+    let v = (col as u32)
+        .wrapping_mul(2654435761)
+        .wrapping_add((row as u32).wrapping_mul(2246822519));
+    v ^ (v >> 16)
+}
+
+fn atmosphere_bg(night_t: f32) -> Color {
+    lerp_color((34, 80, 34), (8, 18, 8), night_t)
+}
+
+fn fence_fg(night_t: f32) -> Color {
+    lerp_color((160, 120, 80), (60, 45, 30), night_t)
+}
+
+// ─── TerrainContext ──────────────────────────────────────────────────────────
+
+struct TerrainContext<'a> {
+    width: u16,
+    height: u16,
+    tick: u64,
+    night_t: f32,
+    bg_color: Color,
+    trees: &'a [(u16, u16)],
+    river_row: u16,
+}
+
+// ─── Render entry point ─────────────────────────────────────────────────────
 
 pub fn render(frame: &mut Frame, app: &App, area: Rect) {
     let chunks = Layout::default()
@@ -24,8 +63,11 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
     let farm_area = chunks[0];
     let status_area = chunks[1];
 
-    render_terrain(frame, farm_area);
-    render_sheep(frame, app, farm_area);
+    let night_t = app.atmosphere.night_factor();
+    let bg_color = atmosphere_bg(night_t);
+
+    render_terrain(frame, app, farm_area, bg_color, night_t);
+    render_sheep(frame, app, farm_area, bg_color, night_t);
 
     if let Some(idx) = app.selected_sheep {
         if let Some(sheep) = app.farm.sheep.get(idx) {
@@ -36,51 +78,175 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
     render_status_bar(frame, app, status_area);
 }
 
-fn render_terrain(frame: &mut Frame, area: Rect) {
+// ─── Terrain ────────────────────────────────────────────────────────────────
+
+fn render_terrain(frame: &mut Frame, app: &App, area: Rect, bg_color: Color, night_t: f32) {
+    let border_color = lerp_color((80, 140, 80), (25, 50, 25), night_t);
     let block = Block::default()
         .borders(Borders::ALL)
-        .border_style(Style::default().fg(Color::Rgb(80, 140, 80)))
-        .style(Style::default().bg(COLOR_BG));
+        .border_style(Style::default().fg(border_color))
+        .style(Style::default().bg(bg_color));
 
     let inner = block.inner(area);
     frame.render_widget(block, area);
 
-    let mut lines = Vec::new();
-    for row in 0..inner.height {
-        let mut spans = Vec::new();
-        for col in 0..inner.width {
-            let (ch, fg) = terrain_char(col, row, inner.width, inner.height);
-            spans.push(Span::styled(
-                ch,
-                Style::default().fg(fg).bg(COLOR_BG),
-            ));
-        }
-        lines.push(Line::from(spans));
-    }
+    let ctx = TerrainContext {
+        width: inner.width,
+        height: inner.height,
+        tick: app.tick_count,
+        night_t,
+        bg_color,
+        trees: &app.farm.trees,
+        river_row: app.farm.river_row,
+    };
+
+    let mut lines: Vec<Line> = (0..inner.height)
+        .map(|row| {
+            Line::from(
+                (0..inner.width)
+                    .map(|col| {
+                        let (ch, fg, bg) = terrain_cell(col, row, &ctx);
+                        Span::styled(ch, Style::default().fg(fg).bg(bg))
+                    })
+                    .collect::<Vec<_>>(),
+            )
+        })
+        .collect();
+
+    overlay_precipitation(&mut lines, &app.atmosphere, inner.width, inner.height);
 
     frame.render_widget(Paragraph::new(lines), inner);
 }
 
-fn terrain_char(col: u16, row: u16, width: u16, height: u16) -> (&'static str, Color) {
+fn terrain_cell(col: u16, row: u16, ctx: &TerrainContext) -> (&'static str, Color, Color) {
+    let w = ctx.width;
+    let h = ctx.height;
+    let n = ctx.night_t;
 
-    if col == width - 4 && row == height / 2 {
-        return ("◎", Color::Cyan);
-    }
-    if (col == width - 5 || col == width - 3) && row == height / 2 {
-        return ("~", Color::Rgb(100, 180, 220));
+    // 1. Perimeter fence
+    if col == 0 || col == w - 1 || row == 0 || row == h - 1 {
+        let ch = match (col == 0, col == w - 1, row == 0, row == h - 1) {
+            (true, _, true, _) => "┌",
+            (_, true, true, _) => "┐",
+            (true, _, _, true) => "└",
+            (_, true, _, true) => "┘",
+            (true, _, _, _) | (_, true, _, _) => "│",
+            _ => "─",
+        };
+        return (ch, fence_fg(n), ctx.bg_color);
     }
 
-    if row % 7 == 3 && col % 14 == 5 {
-        return ("♣", Color::Rgb(50, 110, 50));
-    }
-    if row % 9 == 1 && col % 11 == 2 {
-        return ("·", Color::Rgb(60, 100, 60));
+    // 2. Trees (2×2 sprite)
+    for &(tc, tr) in ctx.trees {
+        if col >= tc && col < tc + 2 && row >= tr && row < tr + 2 {
+            if row == tr {
+                // Foliage row
+                let green = lerp_color((30, 90, 30), (10, 28, 10), n);
+                return ("♣", green, ctx.bg_color);
+            } else {
+                // Trunk row
+                let brown = lerp_color((100, 70, 40), (40, 28, 16), n);
+                let trunk_ch = if col == tc { "╙" } else { "╜" };
+                return (trunk_ch, brown, ctx.bg_color);
+            }
+        }
     }
 
-    (" ", COLOR_BG)
+    // 3. River
+    if row == ctx.river_row || row == ctx.river_row + 1 {
+        let phase = (ctx.tick / 4 + col as u64) % 3;
+        let water_fg = match phase {
+            0 => lerp_color((80, 160, 220), (30, 60, 110), n),
+            1 => lerp_color((70, 140, 200), (25, 52, 100), n),
+            _ => lerp_color((90, 170, 230), (35, 65, 115), n),
+        };
+        let water_bg = lerp_color((20, 60, 110), (8, 22, 45), n);
+        return ("≈", water_fg, water_bg);
+    }
+
+    // 4. Pond (existing)
+    if col == w - 4 && row == h / 2 {
+        return ("◎", lerp_color((0, 210, 210), (0, 80, 100), n), ctx.bg_color);
+    }
+    if (col == w - 5 || col == w - 3) && row == h / 2 {
+        return ("~", lerp_color((100, 180, 220), (40, 70, 110), n), ctx.bg_color);
+    }
+
+    // 5. Stars at night
+    if n > 0.5 {
+        let h_val = cell_hash(col, row);
+        let star_threshold = ((n - 0.5) * 24.0) as u32;
+        if h_val % 60 < star_threshold {
+            let brightness = lerp_u8(0, 200, n - 0.5);
+            let star_ch = if h_val % 3 == 0 { "·" } else { "*" };
+            return (star_ch, Color::Rgb(brightness, brightness, brightness + 20), ctx.bg_color);
+        }
+    }
+
+    // 6. Grass texture + clover/dots (day-scaled)
+    let grass_factor = 1.0 - n * 0.7;
+    let h_val = cell_hash(col, row);
+    let patch = (h_val % 4) as f32 / 4.0;
+    let grass_bg = dim_color(
+        lerp_u8(28, 40, patch),
+        lerp_u8(72, 90, patch),
+        lerp_u8(28, 40, patch),
+        1.0 - n * 0.75,
+    );
+
+    // Clover: use a darker bg patch so the char is visibly darker than surroundings
+    if h_val % 80 < 1 {
+        let clover_bg = dim_color(20, 55, 20, 1.0 - n * 0.75);
+        return (" ", clover_bg, clover_bg);
+    }
+    // Dots: slightly lighter green spot
+    if h_val % 30 < 1 {
+        let dot_bg = dim_color(45, 100, 45, 1.0 - n * 0.75);
+        return (" ", dot_bg, dot_bg);
+    }
+
+    (" ", grass_bg, grass_bg)
 }
 
-fn render_sheep(frame: &mut Frame, app: &App, area: Rect) {
+fn overlay_precipitation(lines: &mut Vec<Line>, atm: &Atmosphere, w: u16, h: u16) {
+    let intensity = atm.weather_intensity();
+    if intensity < 0.05 {
+        return;
+    }
+
+    let (ch, base_r, base_g, base_b) = match atm.active_weather() {
+        None => return,
+        Some(WeatherKind::Rain) => {
+            if intensity > 0.6 { ("|", 100u8, 140u8, 200u8) } else { ("'", 130, 165, 215) }
+        }
+        Some(WeatherKind::Snow) => ("*", 210u8, 220u8, 255u8),
+    };
+
+    let alpha = intensity;
+    let fg = Color::Rgb(
+        (base_r as f32 * alpha) as u8,
+        (base_g as f32 * alpha) as u8,
+        (base_b as f32 * alpha) as u8,
+    );
+
+    for p in &atm.precipitation {
+        let px = p.x as u16;
+        let py = p.y as u16;
+        if px >= w || py >= h {
+            continue;
+        }
+        if let Some(line) = lines.get_mut(py as usize) {
+            if let Some(span) = line.spans.get_mut(px as usize) {
+                let existing_bg = span.style.bg.unwrap_or(Color::Reset);
+                *span = Span::styled(ch, Style::default().fg(fg).bg(existing_bg));
+            }
+        }
+    }
+}
+
+// ─── Sheep ──────────────────────────────────────────────────────────────────
+
+fn render_sheep(frame: &mut Frame, app: &App, area: Rect, bg_color: Color, night_t: f32) {
     let inner_x = area.x + 1;
     let inner_y = area.y + 1;
 
@@ -109,24 +275,15 @@ fn render_sheep(frame: &mut Frame, app: &App, area: Rect) {
                     Px::T
                 };
 
-                let (ch, fg, bg) = half_block(top_px, bot_px, working_pulse);
+                let (ch, fg, bg) = half_block(top_px, bot_px, working_pulse, bg_color, night_t);
                 spans.push(Span::styled(ch, Style::default().fg(fg).bg(bg)));
             }
 
-            if is_selected {
-                let y = row + char_row as u16;
-                let highlight = Line::from(spans);
-                frame.render_widget(
-                    Paragraph::new(vec![highlight]),
-                    Rect::new(col, y, SPRITE_CHAR_WIDTH, 1),
-                );
-            } else {
-                let y = row + char_row as u16;
-                frame.render_widget(
-                    Paragraph::new(vec![Line::from(spans)]),
-                    Rect::new(col, y, SPRITE_CHAR_WIDTH, 1),
-                );
-            }
+            let y = row + char_row as u16;
+            frame.render_widget(
+                Paragraph::new(vec![Line::from(spans)]),
+                Rect::new(col, y, SPRITE_CHAR_WIDTH, 1),
+            );
         }
 
         if is_selected {
@@ -138,7 +295,7 @@ fn render_sheep(frame: &mut Frame, app: &App, area: Rect) {
                     name.clone(),
                     Style::default()
                         .fg(Color::White)
-                        .bg(COLOR_BG)
+                        .bg(bg_color)
                         .add_modifier(Modifier::BOLD),
                 ))),
                 Rect::new(name_x, name_y, name.len() as u16, 1),
@@ -147,49 +304,49 @@ fn render_sheep(frame: &mut Frame, app: &App, area: Rect) {
     }
 }
 
-fn half_block(top: Px, bot: Px, working_pulse: bool) -> (&'static str, Color, Color) {
-    if top == Px::Z && bot == Px::Z {
-        return ("z", Color::Rgb(180, 180, 220), COLOR_BG);
-    }
-    if top == Px::Z {
-        let bot_color = px_color(bot, working_pulse);
-        let bg = if bot == Px::T { COLOR_BG } else { bot_color };
-        return ("z", Color::Rgb(180, 180, 220), bg);
-    }
-    if bot == Px::Z {
-        let top_color = px_color(top, working_pulse);
-        let bg = if top == Px::T { COLOR_BG } else { top_color };
-        return ("z", Color::Rgb(180, 180, 220), bg);
+fn half_block(top: Px, bot: Px, working_pulse: bool, bg_color: Color, night_t: f32) -> (&'static str, Color, Color) {
+    if top == Px::Z || bot == Px::Z {
+        let zzz = Color::Rgb(
+            lerp_u8(180, 80, night_t),
+            lerp_u8(180, 80, night_t),
+            lerp_u8(220, 120, night_t),
+        );
+        let other_px = if top == Px::Z { bot } else { top };
+        let other_color = px_color(other_px, working_pulse, bg_color, night_t);
+        let bg = if other_px == Px::T { bg_color } else { other_color };
+        return ("z", zzz, bg);
     }
 
-    let top_color = px_color(top, working_pulse);
-    let bot_color = px_color(bot, working_pulse);
+    let top_color = px_color(top, working_pulse, bg_color, night_t);
+    let bot_color = px_color(bot, working_pulse, bg_color, night_t);
 
     match (top, bot) {
-        (Px::T, Px::T) => (" ", COLOR_BG, COLOR_BG),
-        (_, Px::T) => ("▀", top_color, COLOR_BG),
-        (Px::T, _) => ("▄", bot_color, COLOR_BG),
+        (Px::T, Px::T) => (" ", bg_color, bg_color),
+        (_, Px::T) => ("▀", top_color, bg_color),
+        (Px::T, _) => ("▄", bot_color, bg_color),
         _ if top_color == bot_color => ("█", top_color, top_color),
         _ => ("▀", top_color, bot_color),
     }
 }
 
-fn px_color(px: Px, working_pulse: bool) -> Color {
+fn px_color(px: Px, working_pulse: bool, bg_color: Color, night_t: f32) -> Color {
+    let dim = 1.0 - night_t * 0.60;
     match px {
-        Px::T => COLOR_BG,
-        Px::K => COLOR_BLACK,
+        Px::T | Px::Z => bg_color,
+        Px::K => dim_color(20, 20, 20, dim),
         Px::W => {
             if working_pulse {
-                Color::Rgb(255, 240, 100)
+                dim_color(255, 240, 100, dim)
             } else {
-                COLOR_WHITE
+                dim_color(250, 250, 250, dim)
             }
         }
-        Px::B => COLOR_BEIGE,
-        Px::Z => COLOR_BG,
-        Px::M => Color::Rgb(180, 40, 40),
+        Px::B => dim_color(210, 180, 140, dim),
+        Px::M => dim_color(180, 40, 40, dim),
     }
 }
+
+// ─── Tooltip ────────────────────────────────────────────────────────────────
 
 fn render_tooltip(frame: &mut Frame, sheep: &crate::model::sheep::Sheep, area: Rect) {
     let text = format!(
@@ -214,6 +371,8 @@ fn render_tooltip(frame: &mut Frame, sheep: &crate::model::sheep::Sheep, area: R
     frame.render_widget(tooltip, Rect::new(x, y, width, 3));
 }
 
+// ─── Status bar ─────────────────────────────────────────────────────────────
+
 fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
     let alive = app.farm.sheep.iter().filter(|s| s.is_alive()).count();
     let dead = app.farm.sheep.iter().filter(|s| !s.is_alive()).count();
@@ -227,15 +386,9 @@ fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
     let status = Line::from(vec![
         conn_indicator,
         Span::styled("| ", Style::default().fg(Color::DarkGray)),
-        Span::styled(
-            format!("🐑 {alive}"),
-            Style::default().fg(Color::Green),
-        ),
+        Span::styled(format!("🐑 {alive}"), Style::default().fg(Color::Green)),
         Span::styled(" | ", Style::default().fg(Color::DarkGray)),
-        Span::styled(
-            format!("🪦 {dead}"),
-            Style::default().fg(Color::Gray),
-        ),
+        Span::styled(format!("🪦 {dead}"), Style::default().fg(Color::Gray)),
         Span::styled(" | ", Style::default().fg(Color::DarkGray)),
         Span::styled("[Tab] Switch", Style::default().fg(Color::DarkGray)),
         Span::styled(" | ", Style::default().fg(Color::DarkGray)),
