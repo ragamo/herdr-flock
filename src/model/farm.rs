@@ -259,8 +259,8 @@ pub fn generate_trees(width: u16, height: u16, river_path: &[u16]) -> Vec<(u16, 
         let col = col_min + ((seed >> 33) as u16 % (col_max - col_min + 1));
         seed = lcg(seed);
         let row = row_min + ((seed >> 33) as u16 % (row_max - row_min + 1));
-        // Exclusion: river overlaps any of the 5 cols × 6 rows the tree occupies
-        let river_overlap = (0..5u16).any(|dc| {
+        // Exclusion: river overlaps any of the 7 cols × 6 rows the tree occupies
+        let river_overlap = (0..7u16).any(|dc| {
             let c = col.saturating_add(dc);
             let rr = river_path.get(c as usize).copied().unwrap_or(0);
             row < rr + 3 && row + 6 > rr.saturating_sub(1)

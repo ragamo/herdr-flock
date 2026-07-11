@@ -131,30 +131,27 @@ fn terrain_cell(col: u16, row: u16, ctx: &TerrainContext) -> (&'static str, Colo
     }
 
     // 2. Trees (4 wide × 6 tall)
-    //    rows 0-3: canopy, rows 4-5: trunk (cols 1-2 of 4)
+    //    rows 0-3: canopy (7 wide), rows 4-5: trunk (cols 2-4)
     for &(tc, tr) in ctx.trees {
         let lc = col.wrapping_sub(tc);
         let lr = row.wrapping_sub(tr);
-        if lc >= 5 || lr >= 6 {
+        if lc >= 7 || lr >= 6 {
             continue;
         }
         let g_dark  = lerp_color((18, 62, 18),  (7, 20, 7),  n);
         let g_light = lerp_color((38, 95, 38),  (14, 35, 14), n);
         let brown   = lerp_color((110, 75, 40), (44, 30, 16), n);
         let bg = ctx.bg_color;
-        // Use tree+col hash to scatter a few light highlight pixels
         let h = cell_hash(tc + lc as u16, tr + lr as u16);
         let canopy = if h % 10 == 0 { ("█", g_light, g_light) } else { ("█", g_dark, g_dark) };
-        // 5 wide × 6 tall:
-        //   rows 0-3: canopy (corners transparent)
-        //   rows 4-5: trunk cols 1-3
+        // 7 wide × 6 tall — corners transparent, trunk centered at cols 2-4
         return match (lc, lr) {
-            (0, 0) | (4, 0) | (0, 3) | (4, 3) => (" ", bg, bg),
+            (0, 0) | (6, 0) | (0, 3) | (6, 3) => (" ", bg, bg),
             (_, 0) | (_, 1) | (_, 2) | (_, 3) => canopy,
-            (1, 4) | (2, 4) | (3, 4) => ("█", brown, brown),
-            (0, 4) | (4, 4) => (" ", bg, bg),
-            (1, 5) | (2, 5) | (3, 5) => ("█", brown, brown),
-            (0, 5) | (4, 5) => (" ", bg, bg),
+            (2, 4) | (3, 4) | (4, 4) => ("█", brown, brown),
+            (0, 4) | (1, 4) | (5, 4) | (6, 4) => (" ", bg, bg),
+            (2, 5) | (3, 5) | (4, 5) => ("█", brown, brown),
+            (0, 5) | (1, 5) | (5, 5) | (6, 5) => (" ", bg, bg),
             _ => (" ", bg, bg),
         };
     }
