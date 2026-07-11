@@ -125,17 +125,9 @@ fn terrain_cell(col: u16, row: u16, ctx: &TerrainContext) -> (&'static str, Colo
     let h = ctx.height;
     let n = ctx.night_t;
 
-    // 1. Perimeter fence
+    // 1. Perimeter fence — transparent (use bg color)
     if col == 0 || col == w - 1 || row == 0 || row == h - 1 {
-        let ch = match (col == 0, col == w - 1, row == 0, row == h - 1) {
-            (true, _, true, _) => "┌",
-            (_, true, true, _) => "┐",
-            (true, _, _, true) => "└",
-            (_, true, _, true) => "┘",
-            (true, _, _, _) | (_, true, _, _) => "│",
-            _ => "─",
-        };
-        return (ch, fence_fg(n), ctx.bg_color);
+        return (" ", ctx.bg_color, ctx.bg_color);
     }
 
     // 2. Trees (4 wide × 6 tall)
@@ -203,15 +195,7 @@ fn terrain_cell(col: u16, row: u16, ctx: &TerrainContext) -> (&'static str, Colo
         return ("≈", water_fg, water_bg);
     }
 
-    // 4. Pond (existing)
-    if col == w - 4 && row == h / 2 {
-        return ("◎", lerp_color((0, 210, 210), (0, 80, 100), n), ctx.bg_color);
-    }
-    if (col == w - 5 || col == w - 3) && row == h / 2 {
-        return ("~", lerp_color((100, 180, 220), (40, 70, 110), n), ctx.bg_color);
-    }
-
-    // 5. Stars at night
+    // 4. Stars at night
     if n > 0.5 {
         let h_val = cell_hash(col, row);
         let star_threshold = ((n - 0.5) * 24.0) as u32;
