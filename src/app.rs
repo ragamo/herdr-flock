@@ -35,6 +35,15 @@ pub struct Atmosphere {
     pub time_of_day: u64,
     pub phase: WeatherPhase,
     pub precipitation: Vec<Particle>,
+    pub fireflies: Vec<Firefly>,
+    pub rainbow_timer: u32,
+    pub wind_angle: f32,
+}
+
+pub struct Firefly {
+    pub x: f32,
+    pub y: f32,
+    pub phase: f32,
 }
 
 const DAY_CYCLE: u64 = 2400;
@@ -46,6 +55,9 @@ impl Atmosphere {
             time_of_day: 0,
             phase: WeatherPhase::Clear { countdown: 800 },
             precipitation: Vec::new(),
+            fireflies: Vec::new(),
+            rainbow_timer: 0,
+            wind_angle: 0.0,
         }
     }
 
@@ -162,8 +174,24 @@ impl Atmosphere {
         };
 
         if let Some(p) = next_phase {
+            // Trigger rainbow when rain ends
+            if matches!(&self.phase, WeatherPhase::FadeOut { kind: WeatherKind::Rain, .. })
+                && matches!(&p, WeatherPhase::Clear { .. })
+            {
+                self.rainbow_timer = 80;
+            }
             self.phase = p;
         }
+
+        // Rainbow countdown
+        self.rainbow_timer = self.rainbow_timer.saturating_sub(1);
+
+        // Wind angle drifts slowly
+        let tod = self.time_of_day as f32;
+        self.wind_angle = (tod * 0.005).sin() * 0.6;
+
+        // Fireflies at night
+        self.update_fireflies(w, h, rng);
 
         // Move particles
         self.move_particles(w, h);
@@ -181,25 +209,54 @@ impl Atmosphere {
     }
 
     fn move_particles(&mut self, w: f32, h: f32) {
-        let tod = self.time_of_day as f32;
         let weather = self.active_weather();
+        let wind = self.wind_angle;
         for p in &mut self.precipitation {
             match weather {
                 Some(WeatherKind::Rain) => {
                     p.y += 0.8;
-                    if p.y >= h {
-                        p.y = 0.0;
-                    }
+                    p.x += wind;
+                    if p.y >= h { p.y = 0.0; }
+                    if p.x < 0.0 { p.x += w; }
+                    if p.x >= w { p.x -= w; }
                 }
                 Some(WeatherKind::Snow) => {
                     p.y += 0.3;
-                    p.x += (tod * 0.02).sin() * 0.5;
+                    p.x += wind * 0.5 + (p.y * 0.05).sin() * 0.3;
                     if p.y >= h { p.y = 0.0; }
                     if p.x < 0.0 { p.x += w; }
                     if p.x >= w { p.x -= w; }
                 }
                 None => {}
             }
+        }
+    }
+
+    fn update_fireflies(&mut self, w: f32, h: f32, rng: &mut impl Rng) {
+        let night = self.night_factor();
+        let target_count = if night > 0.5 {
+            ((w * h) / 800.0 * (night - 0.5) * 2.0) as usize
+        } else {
+            0
+        };
+
+        // Spawn/despawn to match target
+        while self.fireflies.len() < target_count {
+            self.fireflies.push(Firefly {
+                x: rng.gen_range(2.0..w - 2.0),
+                y: rng.gen_range(2.0..h - 2.0),
+                phase: rng.gen_range(0.0..std::f32::consts::TAU),
+            });
+        }
+        self.fireflies.truncate(target_count);
+
+        // Move fireflies gently
+        for f in &mut self.fireflies {
+            f.phase += 0.12;
+            f.x += (f.phase).sin() * 0.15;
+            f.y += (f.phase * 0.7).cos() * 0.1;
+            f.x = f.x.clamp(1.0, w - 2.0);
+            f.y = f.y.clamp(1.0, h - 2.0);
         }
     }
 }

@@ -36,9 +36,6 @@ fn atmosphere_bg(night_t: f32) -> Color {
     lerp_color((34, 80, 34), (8, 18, 8), night_t)
 }
 
-fn fence_fg(night_t: f32) -> Color {
-    lerp_color((160, 120, 80), (60, 45, 30), night_t)
-}
 
 // ─── TerrainContext ──────────────────────────────────────────────────────────
 
@@ -116,6 +113,8 @@ fn render_terrain(frame: &mut Frame, app: &App, area: Rect, bg_color: Color, nig
         .collect();
 
     overlay_precipitation(&mut lines, &app.atmosphere, inner.width, inner.height);
+    overlay_fireflies(&mut lines, &app.atmosphere, inner.width, inner.height);
+    overlay_rainbow(&mut lines, &app.atmosphere, inner.width, inner.height);
 
     frame.render_widget(Paragraph::new(lines), inner);
 }
@@ -263,13 +262,82 @@ fn overlay_precipitation(lines: &mut Vec<Line>, atm: &Atmosphere, w: u16, h: u16
     }
 }
 
+fn overlay_fireflies(lines: &mut Vec<Line>, atm: &Atmosphere, w: u16, h: u16) {
+    if atm.night_factor() < 0.5 {
+        return;
+    }
+
+    for f in &atm.fireflies {
+        let px = f.x as u16;
+        let py = f.y as u16;
+        if px >= w || py >= h {
+            continue;
+        }
+        // Blink using sin of phase — only show when > 0
+        let brightness = (f.phase * 3.0).sin();
+        if brightness < 0.2 {
+            continue;
+        }
+        let glow = (180.0 + brightness * 75.0).min(255.0) as u8;
+        let fg = Color::Rgb(glow, glow - 30, 20);
+        if let Some(line) = lines.get_mut(py as usize) {
+            if let Some(span) = line.spans.get_mut(px as usize) {
+                let existing_bg = span.style.bg.unwrap_or(Color::Reset);
+                *span = Span::styled("·", Style::default().fg(fg).bg(existing_bg));
+            }
+        }
+    }
+}
+
+fn overlay_rainbow(lines: &mut Vec<Line>, atm: &Atmosphere, w: u16, h: u16) {
+    if atm.rainbow_timer == 0 {
+        return;
+    }
+
+    let fade = atm.rainbow_timer as f32 / 80.0;
+    let rainbow_colors: [(u8, u8, u8); 7] = [
+        (255, 0, 0), (255, 127, 0), (255, 255, 0), (0, 200, 0),
+        (0, 0, 255), (75, 0, 130), (148, 0, 211),
+    ];
+
+    let arc_center_x = w / 2;
+    let arc_top_y = 2u16;
+    let radius_base = w.min(h * 2) / 3;
+
+    for (i, &(r, g, b)) in rainbow_colors.iter().enumerate() {
+        let radius = radius_base.saturating_sub(i as u16 * 2);
+        if radius < 3 {
+            continue;
+        }
+        // Draw arc using angle steps
+        for angle_step in 0..30 {
+            let angle = std::f32::consts::PI * (angle_step as f32 / 29.0);
+            let px = (arc_center_x as f32 + (radius as f32) * angle.cos()) as u16;
+            let py = (arc_top_y as f32 + radius as f32 - (radius as f32) * angle.sin()) as u16;
+            if px >= w || py >= h {
+                continue;
+            }
+            if let Some(line) = lines.get_mut(py as usize) {
+                if let Some(span) = line.spans.get_mut(px as usize) {
+                    let existing_bg = span.style.bg.unwrap_or(Color::Reset);
+                    let alpha = fade * 0.6;
+                    let fr = (r as f32 * alpha) as u8;
+                    let fg = (g as f32 * alpha) as u8;
+                    let fb = (b as f32 * alpha) as u8;
+                    *span = Span::styled("░", Style::default().fg(Color::Rgb(fr, fg, fb)).bg(existing_bg));
+                }
+            }
+        }
+    }
+}
+
 // ─── Sheep ──────────────────────────────────────────────────────────────────
 
 fn render_sheep(frame: &mut Frame, app: &App, area: Rect, bg_color: Color, night_t: f32) {
     let inner_x = area.x + 1;
     let inner_y = area.y + 1;
 
-    for (i, sheep) in app.farm.sheep.iter().enumerate().filter(|(_, s)| s.is_alive()) {
+    for (_, sheep) in app.farm.sheep.iter().enumerate().filter(|(_, s)| s.is_alive()) {
         let sprite = get_sprite(sheep.state, sheep.direction, sheep.anim_frame);
         let col = inner_x + sheep.display_col();
         let row = inner_y + sheep.display_row();
@@ -278,7 +346,6 @@ fn render_sheep(frame: &mut Frame, app: &App, area: Rect, bg_color: Color, night
             continue;
         }
 
-        let is_selected = app.selected_sheep == Some(i);
         let working_pulse = sheep.state == SheepState::Working && app.tick_count % 8 < 4;
 
         for char_row in 0..SPRITE_CHAR_HEIGHT as usize {
@@ -305,10 +372,10 @@ fn render_sheep(frame: &mut Frame, app: &App, area: Rect, bg_color: Color, night
             );
         }
 
-        if is_selected {
-            let name_y = row.saturating_sub(1);
-            let name = &sheep.name;
-            let name_x = col + (SPRITE_CHAR_WIDTH / 2).saturating_sub(name.len() as u16 / 2);
+        let name_y = row.saturating_sub(1);
+        let name = &sheep.name;
+        let name_x = col + (SPRITE_CHAR_WIDTH / 2).saturating_sub(name.len() as u16 / 2);
+        if name_y >= area.y {
             frame.render_widget(
                 Paragraph::new(Line::from(Span::styled(
                     name.clone(),
