@@ -290,7 +290,7 @@ fn overlay_fireflies(lines: &mut Vec<Line>, atm: &Atmosphere, w: u16, h: u16) {
 }
 
 fn overlay_rainbow(lines: &mut Vec<Line>, atm: &Atmosphere, w: u16, h: u16) {
-    if atm.rainbow_timer == 0 {
+    if atm.rainbow_timer == 0 || atm.night_factor() > 0.3 {
         return;
     }
 

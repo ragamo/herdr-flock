@@ -2,9 +2,21 @@ id = "flock.farm"
 name = "Flock"
 version = "0.1.0"
 min_herdr_version = "0.7.0"
+description = "Visualize your AI coding agents as pixel-art sheep on a top-down farm"
+platforms = ["linux", "macos"]
+
+[[build]]
+command = ["cargo", "build", "--release"]
+platforms = ["linux", "macos"]
 
 [[panes]]
 id = "farm"
 title = "Flock Farm"
-placement = "overlay"
-command = ["herdr-flock"]
+placement = "split"
+command = ["./target/release/herdr-flock"]
+
+[[actions]]
+id = "open"
+title = "Open Flock Farm"
+contexts = ["workspace"]
+command = ["sh", "-c", "$HERDR_BIN_PATH plugin pane open --plugin flock.farm --entrypoint farm --placement split --direction right --focus"]

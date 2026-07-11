@@ -3,6 +3,10 @@ name = "herdr-flock"
 version = "0.1.0"
 edition = "2024"
 description = "A herdr plugin that visualizes agents as sheep in a top-down farm"
+license = "MIT"
+repository = "https://github.com/ragamo/herdr-flock"
+keywords = ["herdr", "plugin", "tui", "agents"]
+categories = ["command-line-utilities", "visualization"]
 
 [dependencies]
 ratatui = "0.29"

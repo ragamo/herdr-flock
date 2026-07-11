@@ -2,43 +2,64 @@
 
 A [herdr](https://herdr.dev) plugin that visualizes your AI coding agents as pixel-art sheep living on a top-down farm.
 
-Each agent gets its own sheep. While it works, the sheep grazes and glows. When the session ends, the sheep dies and is remembered in the Graveyard.
+Each agent gets its own sheep. While it works, the sheep grazes and glows. When the session ends, the sheep dies and is remembered in the Graveyard. The farm features procedurally generated terrain with rivers, trees, and rocks, unique each session. A day/night cycle shifts the palette from bright greens to moonlit blues, and weather rolls in with rain or snow that drifts across the landscape.
 
-![demo mode screenshot placeholder]
+![demo](assets/demo.gif)
 
-## Features
+## Requirements
 
-### The Flock
-- Pixel-art sheep rendered with Unicode half-blocks — front, back, and side views
-- Idle sheep wander, eat, and sleep with animated sprites
-- Working agents pulse yellow
-- Sheep collide and navigate around each other
-- Mouse click to inspect a sheep (name, project, agent type)
-
-### Living Terrain
-- Procedurally generated river that curves differently each session
-- Trees (5×6) and rocks (6×4) scattered at random positions
-- Perimeter fence with box-drawing characters
-- Grass texture variation via cell hash
-- Day/night cycle (~4 min) with color interpolation and stars at night
-- Rain and snow weather events with fade in/out transitions
-
-### The Graveyard
-- Full history of every sheep that ever lived, persisted in SQLite
-- Epitaph panel with gravestone when selecting a dead sheep
-- Lifespan, birth/death timestamps (local time), agent type, project
-- Dead rows fade darker the older they are
-- Separator between alive and departed
+- [Rust](https://www.rust-lang.org/tools/install) 1.85+ (edition 2024)
+- [herdr](https://herdr.dev) 0.7.0+
+- A terminal with Unicode and 256-color support
 
 ## Installation
 
+### From the herdr marketplace
+
 ```bash
-cargo build --release
+herdr plugin install ragamo/herdr-flock
 ```
 
-The binary will be at `target/release/herdr-flock`.
+The build step runs automatically during install. Make sure `cargo` is available in your PATH.
+
+### From source
+
+```bash
+git clone https://github.com/ragamo/herdr-flock.git
+cd herdr-flock
+cargo build --release
+herdr plugin link .
+```
+
+### Keybinding
+
+Add to your herdr config (`~/.config/herdr/config.toml`) to open the farm with `prefix+i`:
+
+```toml
+[[keys.command]]
+key = "prefix+i"
+type = "plugin_action"
+command = "flock.farm.open"
+description = "Open Flock Farm"
+```
+
+This opens the farm as a split pane to the right of your focused pane in the current workspace.
 
 ## Usage
+
+### As a herdr plugin
+
+Once installed, open the farm from any workspace:
+
+```bash
+# Via keybinding (requires config above)
+prefix+i
+
+# Via CLI
+herdr plugin pane open --plugin flock.farm --entrypoint farm --placement split --direction right --focus
+```
+
+The plugin auto-discovers the herdr socket and shows live agent state. If no socket is found, it falls back to demo mode with mock sheep.
 
 ### Standalone (demo mode)
 ```bash
@@ -46,17 +67,7 @@ cargo run
 ```
 Launches with mock sheep so you can explore without herdr running.
 
-### As a herdr plugin
-With herdr running, the app auto-discovers the socket:
-```bash
-herdr-flock
-# or explicitly:
-HERDR_SOCKET_PATH=/path/to/herdr.sock herdr-flock
-```
-
-To register as a plugin, copy `herdr-plugin.toml` to your herdr plugins directory. The app will then be available as an overlay pane within herdr.
-
-### Keyboard & Mouse
+## Keyboard & Mouse
 
 | Key / Action | Effect |
 |---|---|
@@ -74,8 +85,6 @@ Sheep history is stored at:
 - **macOS**: `~/Library/Application Support/herdr-flock/flock.db`
 - **Linux**: `~/.local/share/herdr-flock/flock.db`
 
-Each sheep has a unique identity of `{pane_id}:{name}` so reused pane IDs (new agent sessions) always create a new sheep rather than resurrecting the old one.
-
 ## Agent → Sheep mapping
 
 | herdr state | Sheep behavior |
@@ -86,8 +95,23 @@ Each sheep has a unique identity of `{pane_id}:{name}` so reused pane IDs (new a
 | `idle` | Walking around |
 | pane closed | Sheep dies, enters Graveyard |
 
+## Uninstall
+
+```bash
+herdr plugin uninstall flock.farm
+```
+
+To also remove stored data:
+```bash
+# macOS
+rm -rf ~/Library/Application\ Support/herdr-flock/
+
+# Linux
+rm -rf ~/.local/share/herdr-flock/
+```
+
 ## Tech
 
 - **Rust** — ratatui 0.29 + crossterm 0.28
 - **Storage** — SQLite via rusqlite (bundled)
-- **herdr integration** — `agent.list` polling every 5s over Unix socket
+- **Platforms** — Linux, macOS
