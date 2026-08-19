@@ -17,6 +17,13 @@ pub enum Direction {
     Right,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum NameMode {
+    #[default]
+    Sheep,
+    Agent,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Sheep {
     pub id: String,
@@ -47,6 +54,19 @@ pub struct Sheep {
 impl Sheep {
     pub fn is_alive(&self) -> bool {
         self.died.is_none()
+    }
+
+    pub fn display_name<'a>(&'a self, mode: NameMode) -> &'a str {
+        match mode {
+            NameMode::Sheep => &self.name,
+            NameMode::Agent => {
+                if self.agent.is_empty() {
+                    &self.name
+                } else {
+                    &self.agent
+                }
+            }
+        }
     }
 
     pub fn display_col(&self) -> u16 {

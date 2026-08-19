@@ -96,7 +96,7 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
                         .constraints([Constraint::Min(1), Constraint::Length(26)])
                         .split(chunks[1]);
                     render_table(frame, app, h_chunks[0]);
-                    render_epitaph(frame, sheep, h_chunks[1]);
+                    render_epitaph(frame, app, sheep, h_chunks[1]);
                 } else {
                     // Narrow: epitaph below the table
                     let v_chunks = Layout::default()
@@ -104,7 +104,7 @@ pub fn render(frame: &mut Frame, app: &App, area: Rect) {
                         .constraints([Constraint::Min(1), Constraint::Length(14)])
                         .split(chunks[1]);
                     render_table(frame, app, v_chunks[0]);
-                    render_epitaph(frame, sheep, v_chunks[1]);
+                    render_epitaph(frame, app, sheep, v_chunks[1]);
                 }
                 render_status_bar(frame, app, chunks[2]);
                 return;
@@ -232,7 +232,7 @@ fn render_table(frame: &mut Frame, app: &App, area: Rect) {
     frame.render_widget(table, area);
 }
 
-fn render_epitaph(frame: &mut Frame, sheep: &Sheep, area: Rect) {
+fn render_epitaph(frame: &mut Frame, app: &App, sheep: &Sheep, area: Rect) {
     let lifespan = sheep
         .died
         .map(|d| format_duration(d - sheep.born))
@@ -248,7 +248,7 @@ fn render_epitaph(frame: &mut Frame, sheep: &Sheep, area: Rect) {
         if s.len() > 11 { format!("{:.10}…", s) } else { format!("{:^11}", s) }
     };
 
-    let name_fit = fit(&sheep.name);
+    let name_fit = fit(sheep.display_name(app.name_mode));
     let life_fit = fit(&lifespan);
 
     let lines = vec![
@@ -294,6 +294,8 @@ fn render_status_bar(frame: &mut Frame, _app: &App, area: Rect) {
         Span::styled("[↑↓] Scroll ", Style::default().fg(Color::DarkGray)),
         Span::styled(" | ", Style::default().fg(Color::DarkGray)),
         Span::styled("[f] Filter ", Style::default().fg(Color::DarkGray)),
+        Span::styled(" | ", Style::default().fg(Color::DarkGray)),
+        Span::styled("[n] Names ", Style::default().fg(Color::DarkGray)),
         Span::styled(" | ", Style::default().fg(Color::DarkGray)),
         Span::styled("[q] Quit", Style::default().fg(Color::DarkGray)),
     ]);

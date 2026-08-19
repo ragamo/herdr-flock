@@ -7,7 +7,7 @@ use rand::Rng;
 use crate::herdr::{HerdrEvent, SnapshotAgent};
 use crate::mock;
 use crate::model::farm::Farm;
-use crate::model::sheep::{Direction, Sheep, SheepState};
+use crate::model::sheep::{Direction, NameMode, Sheep, SheepState};
 use crate::storage;
 use crate::ui;
 
@@ -285,6 +285,7 @@ pub struct App {
     pub selected_sheep: Option<usize>,
     pub log_scroll: u16,
     pub log_filter: LogFilter,
+    pub name_mode: NameMode,
     pub herdr_rx: Option<mpsc::Receiver<HerdrEvent>>,
     pub connected: bool,
     pub atmosphere: Atmosphere,
@@ -324,6 +325,7 @@ impl App {
             selected_sheep: None,
             log_scroll: 0,
             log_filter: LogFilter::All,
+            name_mode: NameMode::Sheep,
             herdr_rx,
             connected,
             atmosphere: Atmosphere::new(),
@@ -344,10 +346,20 @@ impl App {
         self.selected_sheep = None;
     }
 
+    pub fn toggle_name_mode(&mut self) {
+        self.name_mode = match self.name_mode {
+            NameMode::Sheep => NameMode::Agent,
+            NameMode::Agent => NameMode::Sheep,
+        };
+    }
+
     pub fn handle_key(&mut self, key: &KeyEvent) {
-        match self.screen {
-            Screen::Farm => self.handle_farm_key(key),
-            Screen::Log => self.handle_log_key(key),
+        match key.code {
+            KeyCode::Char('n') => self.toggle_name_mode(),
+            _ => match self.screen {
+                Screen::Farm => self.handle_farm_key(key),
+                Screen::Log => self.handle_log_key(key),
+            },
         }
     }
 

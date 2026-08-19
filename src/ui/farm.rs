@@ -373,12 +373,12 @@ fn render_sheep(frame: &mut Frame, app: &App, area: Rect, bg_color: Color, night
         }
 
         let name_y = row.saturating_sub(1);
-        let name = &sheep.name;
+        let name = sheep.display_name(app.name_mode);
         let name_x = col + (SPRITE_CHAR_WIDTH / 2).saturating_sub(name.len() as u16 / 2);
         if name_y >= area.y {
             frame.render_widget(
                 Paragraph::new(Line::from(Span::styled(
-                    name.clone(),
+                    name.to_string(),
                     Style::default()
                         .fg(Color::White)
                         .bg(bg_color)
@@ -480,6 +480,8 @@ fn render_status_bar(frame: &mut Frame, app: &App, area: Rect) {
         Span::styled(format!("🪦 {dead}"), Style::default().fg(Color::Gray)),
         Span::styled(" | ", Style::default().fg(Color::DarkGray)),
         Span::styled("[Tab] Switch", Style::default().fg(Color::DarkGray)),
+        Span::styled(" | ", Style::default().fg(Color::DarkGray)),
+        Span::styled("[n] Names", Style::default().fg(Color::DarkGray)),
         Span::styled(" | ", Style::default().fg(Color::DarkGray)),
         Span::styled("[q] Quit", Style::default().fg(Color::DarkGray)),
     ]);
