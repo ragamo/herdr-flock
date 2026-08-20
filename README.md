@@ -76,6 +76,7 @@ Launches with mock sheep so you can explore without herdr running.
 | `↑↓` | Scroll in Graveyard |
 | `f` | Cycle filter (All / Alive / Dead) in Graveyard |
 | Click on sheep | Show tooltip with name, project, agent |
+| Drag sheep | Pick up and move sheep around the farm |
 | Click on tab | Switch screen |
 | Click on row (Graveyard) | Show epitaph panel for dead sheep |
 
