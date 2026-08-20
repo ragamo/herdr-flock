@@ -52,7 +52,7 @@ impl Farm {
         }
     }
 
-    pub fn tick(&mut self) {
+    pub fn tick(&mut self, dragged_sheep: Option<usize>) {
         let mut rng = rand::thread_rng();
         let w = self.width as f32;
         let h = self.height as f32;
@@ -63,7 +63,7 @@ impl Farm {
 
         let len = self.sheep.len();
         for i in 0..len {
-            if !self.sheep[i].is_alive() {
+            if !self.sheep[i].is_alive() || dragged_sheep == Some(i) {
                 continue;
             }
 
