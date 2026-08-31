@@ -1,7 +1,7 @@
 use std::sync::mpsc;
 
 use chrono::Utc;
-use crossterm::event::{KeyCode, KeyEvent, MouseEvent, MouseEventKind};
+use crossterm::event::{KeyCode, KeyEvent, MouseButton, MouseEvent, MouseEventKind};
 use rand::Rng;
 
 use crate::herdr::{HerdrEvent, SnapshotAgent};
@@ -276,6 +276,13 @@ pub enum LogFilter {
     Dead,
 }
 
+#[derive(Debug, Clone, Copy)]
+pub struct DragState {
+    pub sheep_idx: usize,
+    pub grab_offset_x: f32,
+    pub grab_offset_y: f32,
+}
+
 // ─── App ────────────────────────────────────────────────────────────────────
 
 pub struct App {
@@ -283,6 +290,7 @@ pub struct App {
     pub farm: Farm,
     pub tick_count: u64,
     pub selected_sheep: Option<usize>,
+    pub drag: Option<DragState>,
     pub log_scroll: u16,
     pub log_filter: LogFilter,
     pub name_mode: NameMode,
@@ -323,6 +331,7 @@ impl App {
             farm,
             tick_count: 0,
             selected_sheep: None,
+            drag: None,
             log_scroll: 0,
             log_filter: LogFilter::All,
             name_mode: NameMode::Sheep,
@@ -344,6 +353,7 @@ impl App {
             Screen::Log => Screen::Farm,
         };
         self.selected_sheep = None;
+        self.drag = None;
     }
 
     pub fn toggle_name_mode(&mut self) {
@@ -371,6 +381,7 @@ impl App {
                         if self.screen != screen {
                             self.screen = screen;
                             self.selected_sheep = None;
+                            self.drag = None;
                         }
                     }
                     return;
@@ -389,7 +400,8 @@ impl App {
         self.tick_count = self.tick_count.wrapping_add(1);
         self.tick_atmosphere();
         self.process_herdr_events();
-        self.farm.tick();
+        let dragged_idx = self.drag.map(|d| d.sheep_idx);
+        self.farm.tick(dragged_idx);
     }
 
     fn tick_atmosphere(&mut self) {
@@ -510,12 +522,62 @@ impl App {
     }
 
     fn handle_farm_mouse(&mut self, mouse: &MouseEvent) {
+        let (col, row) = (mouse.column, mouse.row);
+        let offset_x = 1;
+        let offset_y = ui::TAB_HEIGHT + 1;
+
         match mouse.kind {
-            MouseEventKind::Down(_) => {
-                let (col, row) = (mouse.column, mouse.row);
-                let offset_x = 1;
-                let offset_y = ui::TAB_HEIGHT + 1;
-                self.selected_sheep = self.farm.sheep_at(col, row, offset_x, offset_y);
+            MouseEventKind::Down(MouseButton::Left) => {
+                if let Some(idx) = self.farm.sheep_at(col, row, offset_x, offset_y) {
+                    self.selected_sheep = Some(idx);
+                    let sheep = &self.farm.sheep[idx];
+                    let grab_offset_x = (col as f32) - (offset_x as f32) - sheep.x;
+                    let grab_offset_y = (row as f32) - (offset_y as f32) - sheep.y;
+                    self.drag = Some(DragState {
+                        sheep_idx: idx,
+                        grab_offset_x,
+                        grab_offset_y,
+                    });
+                } else {
+                    self.selected_sheep = None;
+                    self.drag = None;
+                }
+            }
+            MouseEventKind::Drag(MouseButton::Left) => {
+                if let Some(drag) = self.drag {
+                    if drag.sheep_idx < self.farm.sheep.len() && self.farm.sheep[drag.sheep_idx].is_alive() {
+                        let margin_x = crate::animation::sprites::SPRITE_CHAR_WIDTH as f32 + 2.0;
+                        let margin_y = crate::animation::sprites::SPRITE_CHAR_HEIGHT as f32 + 1.0;
+                        let max_x = (self.farm.width as f32 - margin_x).max(1.0);
+                        let max_y = (self.farm.height as f32 - margin_y).max(1.0);
+
+                        let new_x = ((col as f32) - (offset_x as f32) - drag.grab_offset_x).clamp(1.0, max_x);
+                        let new_y = ((row as f32) - (offset_y as f32) - drag.grab_offset_y).clamp(1.0, max_y);
+
+                        let sheep = &mut self.farm.sheep[drag.sheep_idx];
+                        if (new_x - sheep.x).abs() > 0.1 {
+                            sheep.direction = if new_x > sheep.x {
+                                Direction::Right
+                            } else {
+                                Direction::Left
+                            };
+                        } else if (new_y - sheep.y).abs() > 0.1 {
+                            sheep.direction = if new_y > sheep.y {
+                                Direction::Down
+                            } else {
+                                Direction::Up
+                            };
+                        }
+
+                        sheep.x = new_x;
+                        sheep.y = new_y;
+                        sheep.target_x = new_x;
+                        sheep.target_y = new_y;
+                    }
+                }
+            }
+            MouseEventKind::Up(_) => {
+                self.drag = None;
             }
             _ => {}
         }
