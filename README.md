@@ -72,6 +72,7 @@ Launches with mock sheep so you can explore without herdr running.
 | Key / Action | Effect |
 |---|---|
 | `Tab` | Switch between Flock and Graveyard |
+| `n` | Toggle sheep names / agent names |
 | `q` | Quit |
 | `↑↓` | Scroll in Graveyard |
 | `f` | Cycle filter (All / Alive / Dead) in Graveyard |

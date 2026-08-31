@@ -14,6 +14,10 @@ pub fn create_mock_farm() -> Farm {
         "data-pipeline", "infra-terraform", "payments", "notifications",
         "search-index", "deploy-cli",
     ];
+    let agents = [
+        "claude", "agy", "copilot", "gemini", "cursor",
+        "codestory", "claude", "agy", "gemini", "cursor",
+    ];
 
     let sprite_w = SPRITE_CHAR_WIDTH as f32;
     let sprite_h = SPRITE_CHAR_HEIGHT as f32;
@@ -38,7 +42,7 @@ pub fn create_mock_farm() -> Farm {
             born,
             died,
             project: projects[i].to_string(),
-            agent: "claude".to_string(),
+            agent: agents[i % agents.len()].to_string(),
             state: if is_dead {
                 SheepState::Idle
             } else {
